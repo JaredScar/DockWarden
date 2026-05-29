@@ -3,6 +3,7 @@
   "version": "1.0.3",
   "description": "A cross-platform Bitwarden companion app with tags, auto-type, smart views, expiry reminders, and automated backups",
   "author": "JaredScar",
+  "homepage": "https://github.com/JaredScar/DockWarden",
   "main": "electron/main.js",
   "scripts": {
     "ng": "ng",
