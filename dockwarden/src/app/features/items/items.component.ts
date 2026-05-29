@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed, ChangeDetectionStrategy, OnInit, OnDestroy } from '@angular/core';
+import { Component, inject, signal, computed, effect, ChangeDetectionStrategy, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Params } from '@angular/router';
 import { FormsModule } from '@angular/forms';
@@ -48,6 +48,24 @@ export class ItemsComponent implements OnInit, OnDestroy {
 
   readonly items = this.vaultService.items;
   readonly folders = this.vaultService.folders;
+
+  constructor() {
+    // Auto-select the top search result as the user types — like 1Password's
+    // inline search behaviour where the best match is shown immediately.
+    effect(() => {
+      const q = this.searchQuery();
+      if (!q) return;
+      const results = this.filteredItems();
+      if (results.length > 0) {
+        this.selectedItem.set(results[0]);
+        this.showPassword.set(false);
+        this.editing.set(false);
+        this.saveError.set('');
+      } else {
+        this.selectedItem.set(null);
+      }
+    });
+  }
 
   readonly filteredItems = computed(() => {
     const q = this.searchQuery();

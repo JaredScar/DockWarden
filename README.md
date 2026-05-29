@@ -2,7 +2,7 @@
 
 # 🛡️ DockWarden
 
-### The Bitwarden power-user companion you've been waiting for.
+### A power-user companion app built on top of Bitwarden.
 
 **Tags · Auto-Type · Smart Views · Expiry Reminders · Quick Launcher · Automated Backups**
 
@@ -19,20 +19,31 @@
 
 ---
 
-## 🤔 Why Does DockWarden Exist?
+## 🤔 What is DockWarden?
 
-Bitwarden is excellent. But it has a category of power-user features that have been sitting in **open GitHub issues and community votes for years** — fully acknowledged by the team, never shipped. DockWarden doesn't replace Bitwarden. It sits on top of it, using the official CLI, and fills every one of those gaps today.
+Bitwarden is an exceptional password manager — open-source, self-hostable, and trusted by millions. DockWarden is a desktop companion app that builds directly on top of it, adding a layer of power-user workflows that close the gap with tools like **1Password** — without asking you to leave Bitwarden.
 
-| Gap | Bitwarden status | DockWarden |
-|---|---|---|
-| Tag / label system | 📋 [Planned – 5+ year open request](https://community.bitwarden.com) | ✅ Full tag manager + bulk editor |
-| Auto-Type (type into apps) | 🚧 [On roadmap, not shipped as of Jan 2026](https://bitwarden.com/roadmap) | ✅ Global hotkey → fuzzy pick → keystroke injection |
-| Smart folders / saved filters | 📋 Community requested | ✅ AND/OR filter builder, pinned in sidebar |
-| Password expiry dates + alerts | 📋 [Active feature request, used by IT/DevOps](https://community.bitwarden.com) | ✅ Custom field + OS notifications + dashboard |
-| Global quick-search launcher | 📋 [Requested: "1Password has this, Bitwarden doesn't"](https://community.bitwarden.com) | ✅ Frameless popup on any monitor |
-| Scheduled encrypted backups | 📋 Zero native scheduling | ✅ Nightly cron → local / S3 / Backblaze / WebDAV |
+Everything DockWarden does uses the **official Bitwarden CLI** under the hood. Your vault stays in Bitwarden, your credentials stay encrypted by Bitwarden, and your account stays under your control. DockWarden simply extends what you can do with it.
 
-> Your **vault data never leaves Bitwarden**. DockWarden reads and writes via the official `bw` CLI and stores only lightweight metadata (tags, expiry, custom CSS) in Bitwarden's own custom-field system.
+### Why not just switch to 1Password?
+
+1Password has a strong feature set, but it is a **closed-source, proprietary SaaS product**. Bitwarden is open-source and self-hostable. For many users — individuals, businesses, and security-conscious teams — those properties are non-negotiable. DockWarden lets you keep all of Bitwarden's advantages and gain the desktop experience quality you'd expect from 1Password.
+
+| Feature | 1Password | Bitwarden (native) | DockWarden + Bitwarden |
+|---|:---:|:---:|:---:|
+| Tag / label system | ✅ | ❌ | ✅ |
+| Auto-Type into native apps | ✅ | ❌ | ✅ |
+| Global quick-search launcher | ✅ | ❌ | ✅ |
+| Auto-select top search result | ✅ | ❌ | ✅ |
+| Click any field box to copy | ✅ | ❌ | ✅ |
+| Smart filters / saved searches | ✅ | ❌ | ✅ |
+| Password expiry alerts | ✅ | ❌ | ✅ |
+| Scheduled encrypted backups | ❌ | ❌ | ✅ |
+| Open source | ❌ | ✅ | ✅ |
+| Self-hostable vault | ❌ | ✅ | ✅ |
+| Custom CSS / theming | ❌ | ❌ | ✅ |
+
+> Your **vault data never leaves Bitwarden**. Tags, expiry dates, and other metadata are written to Bitwarden's own custom fields — encrypted at rest in your Bitwarden vault.
 
 ---
 
@@ -40,7 +51,7 @@ Bitwarden is excellent. But it has a category of power-user features that have b
 
 ### 🏷️ Tag & Label Manager
 
-Bitwarden only allows one folder per item. DockWarden adds a full **multi-tag system** stored transparently in Bitwarden custom fields (`_dw_tags`), so your tags survive in your vault even if you stop using DockWarden.
+Bitwarden's folder system is great for broad organisation, but power users often want to cross-reference items with multiple labels. DockWarden adds a **multi-tag system** stored transparently in custom fields (`_dw_tags`), so your tags are preserved in your Bitwarden vault regardless of what app you use to access them.
 
 - **Bulk editor** — select multiple items, apply or remove tags in one action
 - **Tag cloud sidebar** — click any tag to instantly filter the item list
@@ -52,8 +63,6 @@ Bitwarden only allows one folder per item. DockWarden adds a full **multi-tag sy
 ---
 
 ### ⌨️ Auto-Type *(Windows — Mac coming)*
-
-Bitwarden's own roadmap lists Auto-Type as in development with no ship date as of January 2026. DockWarden ships it today.
 
 Press `Ctrl+Alt+A` from **any application**. A floating picker appears on the monitor you're working on. Select the entry — DockWarden minimises itself and types **username → Tab → password → Enter** directly into whatever window had focus before you pressed the shortcut.
 
@@ -68,7 +77,7 @@ Press `Ctrl+Alt+A` from **any application**. A floating picker appears on the mo
 
 ### 🔍 Global Quick Launcher
 
-A **Spotlight/Alfred-style popup** triggered by `Ctrl+Alt+\` that floats on whatever monitor your cursor is on — completely independent of the DockWarden main window. Bitwarden users have been requesting exactly this since at least 2019, citing that 1Password has it and Bitwarden does not.
+A **Spotlight/Alfred-style popup** triggered by `Ctrl+Alt+\` that floats on whatever monitor your cursor is on, completely independent of the DockWarden main window.
 
 - Instant fuzzy search across your entire vault (cached in memory — no CLI round-trip)
 - `↑↓` to navigate, `Enter` to open the item in the main vault view
@@ -76,6 +85,19 @@ A **Spotlight/Alfred-style popup** triggered by `Ctrl+Alt+\` that floats on what
 - Opens on **the monitor you're working on**, not on the DockWarden window
 
 ![Quick Launcher floating popup](docs/screenshots/quick-launcher.png)
+
+---
+
+### 🔎 Auto-Select Top Search Result
+
+One of the most-cited quality-of-life differences between 1Password and Bitwarden's desktop app is how search behaves. In 1Password, the best match is selected and its details opened automatically as you type. DockWarden brings the same behaviour to the Bitwarden vault browser.
+
+- Start typing in the search box — the top fuzzy-matched result is **automatically selected and shown** in the detail panel on the right
+- No need to click the result first
+- Clearing the search returns to your previous selection
+- Works the same way in the Quick Launcher floating window
+
+![Item Browser](docs/screenshots/items-browser.png)
 
 ---
 
@@ -94,7 +116,7 @@ Save complex filter combinations as named "Smart Views" that act like dynamic fo
 
 ### ⏰ Password Expiry Reminders
 
-There is a long-standing, highly active community request for password expiry tracking — particularly from IT administrators managing service accounts, certificates, and API keys with forced rotation policies. DockWarden stores expiry dates in `_dw_expires` custom fields and fires **OS desktop notifications** on a configurable schedule.
+DockWarden stores expiry dates in `_dw_expires` custom fields and fires **OS desktop notifications** on a configurable schedule.
 
 - **Dashboard** — grouped view: Expired · Expiring This Week · Expiring This Month
 - **System tray notifications** — 30, 7, and 1 day before expiry
@@ -107,7 +129,7 @@ There is a long-standing, highly active community request for password expiry tr
 
 ### 💾 Scheduled Encrypted Backup
 
-Bitwarden has zero native backup scheduling. DockWarden wraps `bw export --format encrypted_json` in a configurable cron job that runs silently in the background. Self-hosters and sysadmins have been asking for exactly this.
+DockWarden wraps `bw export --format encrypted_json` in a configurable cron job that runs silently in the background.
 
 - **Destinations:** Local folder · AWS S3 · Cloudflare R2 · Backblaze B2 · WebDAV
 - **Schedule:** Hourly · Daily · Weekly · On every vault sync
@@ -116,6 +138,19 @@ Bitwarden has zero native backup scheduling. DockWarden wraps `bw export --forma
 - One-click restore verification
 
 ![Encrypted Backup page](docs/screenshots/backup.png)
+
+---
+
+### 🖱️ Click-to-Copy Fields
+
+A small but frequently requested UX improvement: clicking anywhere on a username, password, website, or card number field box copies the value to your clipboard instantly — no need to aim for the small copy icon.
+
+- The entire field row is the click target
+- A copy icon appears on hover as a visual hint
+- The row flashes green and the icon turns to a checkmark to confirm the copy
+- The eye/reveal button for passwords is intentionally separate and does **not** trigger a copy
+
+![Item Browser](docs/screenshots/items-browser.png)
 
 ---
 
@@ -171,8 +206,8 @@ A fully-featured in-app CSS editor under **Settings → Advanced**. Retheme the 
 
 ```bash
 # 1. Clone
-git clone https://github.com/your-username/dockwarden.git
-cd dockwarden/dockwarden
+git clone https://github.com/JaredScar/DockWarden.git
+cd DockWarden/dockwarden
 
 # 2. Install
 npm install
@@ -216,9 +251,9 @@ npm run electron     # Launch Electron against dist/
 
 DockWarden is designed with a minimal attack surface:
 
-- **No credentials stored by DockWarden** — authentication is handled entirely by the `bw` CLI; the session key lives only in memory for the lifetime of the app process
+- **No credentials stored by DockWarden** — authentication is handled entirely by the official `bw` CLI; the session key lives only in memory for the lifetime of the app process
 - **contextBridge isolation** — the Angular renderer has no access to Node.js or IPC directly; it communicates only through a typed, allowlisted surface defined in `preload.js`
-- **Metadata in your vault** — tags and expiry dates are written to Bitwarden custom fields (not a local database), so they are encrypted at rest in your Bitwarden vault
+- **Metadata in your vault** — tags and expiry dates are written to Bitwarden custom fields (not a local database), so they are encrypted at rest by Bitwarden
 - **Open source** — full source available for review
 
 ---
@@ -304,6 +339,8 @@ export class VaultService {
 | ✅ Expiry System | `_dw_expires` field, expiry dashboard, OS notifications | **Shipped** |
 | ✅ Encrypted Backup | `bw export` cron, local/S3/Backblaze, retention, history | **Shipped** |
 | ✅ Custom CSS | Live-preview CSS editor, variable reference, presets | **Shipped** |
+| ✅ Click-to-Copy Fields | Click any field box to copy; green flash confirmation | **Shipped** |
+| ✅ Auto-Select Search | Top fuzzy match selected automatically as you type | **Shipped** |
 | 🚧 Mac Auto-Type | `nut-js` keystroke injection for macOS | Planned |
 | 🚧 TOTP in Launcher | Tab to copy TOTP + live countdown ring | Planned |
 | 🚧 Cloud backup adapters | S3, Cloudflare R2, Backblaze B2, WebDAV live | Planned |
@@ -332,8 +369,8 @@ MIT © DockWarden Contributors
 
 <div align="center">
 
-**Built because Bitwarden users deserved these features years ago.**
+**Built with ❤️ on top of Bitwarden — the best open-source password manager.**
 
-⭐ If DockWarden saves you time, please star the repository.
+⭐ If DockWarden is useful to you, consider starring the repository.
 
 </div>

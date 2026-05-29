@@ -118,11 +118,14 @@
                 </button>
               </div>
             } @else {
-              <div class="field-value-row">
+              <div class="field-value-row copyable"
+                   [class.copied]="copiedField() === 'username'"
+                   (click)="copyToClipboard(item.username!, 'username')"
+                   title="Click to copy username">
                 <span class="field-value">{{ item.username }}</span>
-                <button class="btn-icon copy-btn" (click)="copyToClipboard(item.username!, 'username')" [class.copied]="copiedField() === 'username'">
+                <span class="copy-hint" [class.copied]="copiedField() === 'username'">
                   <i class="{{ copiedField() === 'username' ? 'fas fa-check' : 'fas fa-copy' }}"></i>
-                </button>
+                </span>
               </div>
             }
           </div>
@@ -146,15 +149,18 @@
                 </button>
               </div>
             } @else {
-              <div class="field-value-row">
+              <div class="field-value-row copyable"
+                   [class.copied]="copiedField() === 'password'"
+                   (click)="copyToClipboard(item.password!, 'password')"
+                   title="Click to copy password">
                 <span class="field-value password-value">{{ showPassword() ? item.password : '•'.repeat(16) }}</span>
                 <div class="field-actions">
-                  <button class="btn-icon" (click)="showPassword.set(!showPassword())">
+                  <button class="btn-icon" (click)="$event.stopPropagation(); showPassword.set(!showPassword())" title="Show / hide">
                     <i class="{{ showPassword() ? 'fas fa-eye-slash' : 'fas fa-eye' }}"></i>
                   </button>
-                  <button class="btn-icon copy-btn" (click)="copyToClipboard(item.password!, 'password')" [class.copied]="copiedField() === 'password'">
+                  <span class="copy-hint" [class.copied]="copiedField() === 'password'">
                     <i class="{{ copiedField() === 'password' ? 'fas fa-check' : 'fas fa-copy' }}"></i>
-                  </button>
+                  </span>
                 </div>
               </div>
               @if (item.passwordStrength !== null) {
@@ -173,8 +179,14 @@
         @if (!editing() && item.website) {
           <div class="field-group">
             <div class="field-label">WEBSITE</div>
-            <div class="field-value-row">
+            <div class="field-value-row copyable"
+                 [class.copied]="copiedField() === 'website'"
+                 (click)="copyToClipboard(item.website!, 'website')"
+                 title="Click to copy website">
               <span class="field-value">{{ item.website }}</span>
+              <span class="copy-hint" [class.copied]="copiedField() === 'website'">
+                <i class="{{ copiedField() === 'website' ? 'fas fa-check' : 'fas fa-copy' }}"></i>
+              </span>
             </div>
           </div>
         }
@@ -183,13 +195,16 @@
         @if (item.totp) {
           <div class="field-group">
             <div class="field-label">ONE-TIME PASSWORD</div>
-            <div class="field-value-row">
+            <div class="field-value-row copyable"
+                 [class.copied]="copiedField() === 'totp'"
+                 (click)="copyToClipboard(item.totp!, 'totp')"
+                 title="Click to copy one-time password">
               <span class="field-value totp-value">{{ totpDisplay }}</span>
               <div class="field-actions">
-                <i class="fas fa-rotate-right totp-ring"></i>
-                <button class="btn-icon copy-btn" (click)="copyToClipboard(item.totp!, 'totp')" [class.copied]="copiedField() === 'totp'">
+                <i class="fas fa-rotate-right totp-ring" (click)="$event.stopPropagation()"></i>
+                <span class="copy-hint" [class.copied]="copiedField() === 'totp'">
                   <i class="{{ copiedField() === 'totp' ? 'fas fa-check' : 'fas fa-copy' }}"></i>
-                </button>
+                </span>
               </div>
             </div>
           </div>
@@ -199,11 +214,14 @@
         @if (item.cardNumber) {
           <div class="field-group">
             <div class="field-label">CARD NUMBER</div>
-            <div class="field-value-row">
+            <div class="field-value-row copyable"
+                 [class.copied]="copiedField() === 'card'"
+                 (click)="copyToClipboard(item.cardNumber!, 'card')"
+                 title="Click to copy card number">
               <span class="field-value">{{ item.cardNumber }}</span>
-              <button class="btn-icon copy-btn" (click)="copyToClipboard(item.cardNumber!, 'card')">
-                <i class="fas fa-copy"></i>
-              </button>
+              <span class="copy-hint" [class.copied]="copiedField() === 'card'">
+                <i class="{{ copiedField() === 'card' ? 'fas fa-check' : 'fas fa-copy' }}"></i>
+              </span>
             </div>
           </div>
         }

@@ -206,6 +206,36 @@
   background: var(--bg-secondary);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
+
+  &.copyable {
+    cursor: pointer;
+    transition: background var(--transition), border-color var(--transition);
+
+    &:hover {
+      background: var(--bg-card-hover);
+      border-color: rgba(99, 102, 241, 0.45);
+
+      .copy-hint { opacity: 1; }
+    }
+
+    &.copied {
+      border-color: var(--accent-green);
+      background: rgba(63, 185, 80, 0.08);
+
+      .copy-hint { opacity: 1; color: var(--accent-green); }
+    }
+  }
+}
+
+.copy-hint {
+  color: var(--text-muted);
+  font-size: 13px;
+  opacity: 0;
+  transition: opacity var(--transition), color var(--transition);
+  flex-shrink: 0;
+  pointer-events: none;
+
+  &.copied { opacity: 1; color: var(--accent-green); }
 }
 
 .field-value {
