@@ -314,6 +314,16 @@ function openLauncherWindow(mode) {
 // Cached items — available instantly to launcher windows
 ipcMain.handle('vault:get-cached-items', () => itemsCache);
 
+ipcMain.handle('vault:get-totp', async (_, { itemId }) => {
+  if (!bwSession) return { success: false, error: 'Vault is locked' };
+  try {
+    const code = await runBw(['get', 'totp', itemId], { BW_SESSION: bwSession });
+    return { success: true, code: code.trim() };
+  } catch (err) {
+    return { success: false, error: extractBwError(String(err.message)) };
+  }
+});
+
 // Launcher window asks to be closed
 ipcMain.on('launcher:close', (event) => {
   BrowserWindow.fromWebContents(event.sender)?.close();
@@ -700,54 +710,89 @@ function setupIpcHandlers() {
   // ─── Auto-Type (Windows only) ──────────────────────────────────────────────
 
   ipcMain.handle('autotype:send', async (_, { username, password, pressEnter }) => {
-    if (process.platform !== 'win32') {
-      return { success: false, error: 'Auto-Type is currently only supported on Windows.' };
-    }
-
-    // Escape special SendKeys control chars: + ^ % ~ ( ) { } [ ]
-    function escSK(str) {
-      return (str || '').replace(/[+^%~(){}[\]]/g, ch => `{${ch}}`);
+    const platform = process.platform;
+    if (platform !== 'win32' && platform !== 'darwin') {
+      return { success: false, error: 'Auto-Type is supported on Windows and macOS only.' };
     }
 
     try {
       mainWindow?.minimize();
 
-      // Write credentials to a JSON temp file to avoid shell-escaping issues
-      const ts   = Date.now();
-      const dataFile   = path.join(app.getPath('temp'), `dw-at-data-${ts}.json`);
-      const scriptFile = path.join(app.getPath('temp'), `dw-at-${ts}.ps1`);
+      if (platform === 'win32') {
+        // ── Windows: PowerShell SendKeys ──────────────────────────────────────
+        function escSK(str) {
+          return (str || '').replace(/[+^%~(){}[\]]/g, ch => `{${ch}}`);
+        }
+        const ts         = Date.now();
+        const dataFile   = path.join(app.getPath('temp'), `dw-at-data-${ts}.json`);
+        const scriptFile = path.join(app.getPath('temp'), `dw-at-${ts}.ps1`);
 
-      fs.writeFileSync(dataFile, JSON.stringify({
-        username: escSK(username || ''),
-        password: escSK(password || ''),
-        pressEnter: !!pressEnter,
-      }), 'utf8');
+        fs.writeFileSync(dataFile, JSON.stringify({
+          username: escSK(username || ''),
+          password: escSK(password || ''),
+          pressEnter: !!pressEnter,
+        }), 'utf8');
 
-      const dataFileEsc = dataFile.replace(/\\/g, '\\\\');
-      const scriptFileEsc = scriptFile.replace(/\\/g, '\\\\');
+        const dataFileEsc   = dataFile.replace(/\\/g, '\\\\');
+        const scriptFileEsc = scriptFile.replace(/\\/g, '\\\\');
 
-      const script = [
-        'Add-Type -AssemblyName System.Windows.Forms',
-        `$d = Get-Content '${dataFileEsc}' | ConvertFrom-Json`,
-        'Start-Sleep -Milliseconds 900',
-        'if ($d.username) { [System.Windows.Forms.SendKeys]::SendWait($d.username) }',
-        'if ($d.username -and $d.password) { [System.Windows.Forms.SendKeys]::SendWait("{TAB}") }',
-        'if ($d.password) { [System.Windows.Forms.SendKeys]::SendWait($d.password) }',
-        'if ($d.pressEnter) { [System.Windows.Forms.SendKeys]::SendWait("{ENTER}") }',
-        `Remove-Item '${dataFileEsc}' -ErrorAction SilentlyContinue`,
-        `Remove-Item '${scriptFileEsc}' -ErrorAction SilentlyContinue`,
-      ].join('\n');
+        const script = [
+          'Add-Type -AssemblyName System.Windows.Forms',
+          `$d = Get-Content '${dataFileEsc}' | ConvertFrom-Json`,
+          'Start-Sleep -Milliseconds 900',
+          'if ($d.username) { [System.Windows.Forms.SendKeys]::SendWait($d.username) }',
+          'if ($d.username -and $d.password) { [System.Windows.Forms.SendKeys]::SendWait("{TAB}") }',
+          'if ($d.password) { [System.Windows.Forms.SendKeys]::SendWait($d.password) }',
+          'if ($d.pressEnter) { [System.Windows.Forms.SendKeys]::SendWait("{ENTER}") }',
+          `Remove-Item '${dataFileEsc}' -ErrorAction SilentlyContinue`,
+          `Remove-Item '${scriptFileEsc}' -ErrorAction SilentlyContinue`,
+        ].join('\n');
 
-      fs.writeFileSync(scriptFile, script, 'utf8');
+        fs.writeFileSync(scriptFile, script, 'utf8');
 
-      // Detach so DockWarden doesn't block — script self-deletes when done
-      const proc = spawn('powershell.exe', [
-        '-ExecutionPolicy', 'Bypass',
-        '-NonInteractive',
-        '-WindowStyle', 'Hidden',
-        '-File', scriptFile,
-      ], { detached: true, stdio: 'ignore' });
-      proc.unref();
+        const proc = spawn('powershell.exe', [
+          '-ExecutionPolicy', 'Bypass',
+          '-NonInteractive',
+          '-WindowStyle', 'Hidden',
+          '-File', scriptFile,
+        ], { detached: true, stdio: 'ignore' });
+        proc.unref();
+
+      } else {
+        // ── macOS: pbcopy + osascript (handles all Unicode / special chars) ───
+        // Uses clipboard as an intermediary so no AppleScript string escaping
+        // is needed — works with any password including quotes, backslashes, etc.
+        const pbcopy = (text) => new Promise((resolve, reject) => {
+          const proc = spawn('pbcopy');
+          proc.on('error', reject);
+          proc.on('close', resolve);
+          proc.stdin.write(text ?? '', 'utf8');
+          proc.stdin.end();
+        });
+
+        const oса = (script) => execAsync(`osascript -e '${script}'`);
+
+        // Short delay so DockWarden finishes minimising before we steal focus
+        await new Promise(r => setTimeout(r, 900));
+
+        if (username) {
+          await pbcopy(username);
+          await oса('tell application "System Events" to keystroke "v" using command down');
+        }
+        if (username && password) {
+          await oса('tell application "System Events" to key code 48'); // Tab
+        }
+        if (password) {
+          await pbcopy(password);
+          await oса('tell application "System Events" to keystroke "v" using command down');
+        }
+        if (pressEnter) {
+          await oса('tell application "System Events" to key code 36'); // Return
+        }
+
+        // Clear clipboard after 2 s so the password is not left behind
+        setTimeout(() => pbcopy(''), 2000);
+      }
 
       return { success: true };
     } catch (err) {

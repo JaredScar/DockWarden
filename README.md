@@ -341,10 +341,10 @@ export class VaultService {
 | ✅ Custom CSS | Live-preview CSS editor, variable reference, presets | **Shipped** |
 | ✅ Click-to-Copy Fields | Click any field box to copy; green flash confirmation | **Shipped** |
 | ✅ Auto-Select Search | Top fuzzy match selected automatically as you type | **Shipped** |
-| 🚧 Mac Auto-Type | `nut-js` keystroke injection for macOS | Planned |
-| 🚧 TOTP in Launcher | Tab to copy TOTP + live countdown ring | Planned |
+| ✅ Auto-updater | Silent background updates via `electron-updater` + GitHub Releases | **Shipped** |
+| ✅ Mac Auto-Type | `pbcopy` + `osascript` keystroke injection for macOS | **Shipped** |
+| ✅ TOTP in Launcher | Click or `Tab` to copy live OTP code; countdown ring | **Shipped** |
 | 🚧 Cloud backup adapters | S3, Cloudflare R2, Backblaze B2, WebDAV live | Planned |
-| 🚧 Auto-updater | `electron-updater` with GitHub Releases | Planned |
 
 ---
 

@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getItems: () => ipcRenderer.invoke('vault:get-items'),
     getCachedItems: () => ipcRenderer.invoke('vault:get-cached-items'),
     getFolders: () => ipcRenderer.invoke('vault:get-folders'),
+    getTotp: (itemId) => ipcRenderer.invoke('vault:get-totp', { itemId }),
     sync: () => ipcRenderer.invoke('vault:sync'),
     editItem: (id, patch) => ipcRenderer.invoke('vault:edit-item', { id, patch }),
     createItem: (item) => ipcRenderer.invoke('vault:create-item', { item }),

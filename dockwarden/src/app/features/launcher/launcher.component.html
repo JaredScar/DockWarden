@@ -38,7 +38,26 @@
               <span class="item-sub">{{ item.website }}</span>
             }
           </span>
-          <i class="{{ getIcon(item.type) }} type-icon"></i>
+
+          @if (item.totp) {
+            <button
+              class="totp-btn"
+              [class.copied]="totpCopiedId() === item.id"
+              [disabled]="totpCopying()"
+              (click)="$event.stopPropagation(); copyTotp(item)"
+              title="Copy one-time password"
+            >
+              @if (totpCopiedId() === item.id) {
+                <i class="fas fa-check"></i>
+                <span class="totp-label">Copied!</span>
+              } @else {
+                <i class="fas fa-clock"></i>
+                <span class="totp-label">{{ totpCountdown() }}s</span>
+              }
+            </button>
+          } @else {
+            <i class="{{ getIcon(item.type) }} type-icon"></i>
+          }
         </button>
       }
     }
@@ -47,6 +66,9 @@
   <div class="launcher-footer">
     <span><kbd>↑↓</kbd> Navigate</span>
     <span><kbd>Enter</kbd> Open in vault</span>
+    @if (selectedHasTotp()) {
+      <span class="totp-hint"><kbd>Tab</kbd> Copy TOTP</span>
+    }
     <span><kbd>Esc</kbd> Close</span>
   </div>
 </div>

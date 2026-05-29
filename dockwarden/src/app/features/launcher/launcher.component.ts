@@ -12,10 +12,15 @@ import { VaultItem } from '../../shared/models';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class LauncherComponent implements OnInit, OnDestroy {
-  readonly query = signal('');
-  readonly allItems = signal<VaultItem[]>([]);
+  readonly query       = signal('');
+  readonly allItems    = signal<VaultItem[]>([]);
   readonly selectedIdx = signal(0);
-  readonly loading = signal(true);
+  readonly loading     = signal(true);
+
+  // TOTP state
+  readonly totpCopiedId  = signal<string | null>(null);
+  readonly totpCopying   = signal(false);
+  readonly totpCountdown = signal(30 - (Math.floor(Date.now() / 1000) % 30));
 
   readonly results = computed(() => {
     const q = this.query().toLowerCase().trim();
@@ -28,7 +33,12 @@ export class LauncherComponent implements OnInit, OnDestroy {
     ).slice(0, 10);
   });
 
+  readonly selectedItem = computed(() => this.results()[this.selectedIdx()] ?? null);
+  readonly selectedHasTotp = computed(() => !!this.selectedItem()?.totp);
+
   private _kbHandler?: (e: KeyboardEvent) => void;
+  private _countdownInterval?: ReturnType<typeof setInterval>;
+  private _copiedTimer?: ReturnType<typeof setTimeout>;
 
   async ngOnInit(): Promise<void> {
     if (window.electronAPI) {
@@ -37,18 +47,30 @@ export class LauncherComponent implements OnInit, OnDestroy {
     }
     this.loading.set(false);
 
+    // Live TOTP countdown — tick every second
+    this._countdownInterval = setInterval(() => {
+      this.totpCountdown.set(30 - (Math.floor(Date.now() / 1000) % 30));
+    }, 1000);
+
     this._kbHandler = (e: KeyboardEvent) => {
       const len = this.results().length;
-      if (e.key === 'ArrowDown')  { e.preventDefault(); this.selectedIdx.update(i => Math.min(i + 1, len - 1)); }
-      if (e.key === 'ArrowUp')    { e.preventDefault(); this.selectedIdx.update(i => Math.max(i - 1, 0)); }
-      if (e.key === 'Enter')      { const item = this.results()[this.selectedIdx()]; if (item) this.select(item); }
-      if (e.key === 'Escape')     { window.electronAPI?.launcher?.close(); }
+      if (e.key === 'ArrowDown') { e.preventDefault(); this.selectedIdx.update(i => Math.min(i + 1, len - 1)); }
+      if (e.key === 'ArrowUp')   { e.preventDefault(); this.selectedIdx.update(i => Math.max(i - 1, 0)); }
+      if (e.key === 'Enter')     { const item = this.results()[this.selectedIdx()]; if (item) this.select(item); }
+      if (e.key === 'Escape')    { window.electronAPI?.launcher?.close(); }
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        const item = this.selectedItem();
+        if (item?.totp) this.copyTotp(item);
+      }
     };
     document.addEventListener('keydown', this._kbHandler);
   }
 
   ngOnDestroy(): void {
     if (this._kbHandler) document.removeEventListener('keydown', this._kbHandler);
+    if (this._countdownInterval) clearInterval(this._countdownInterval);
+    if (this._copiedTimer) clearTimeout(this._copiedTimer);
   }
 
   onQueryChange(val: string): void {
@@ -60,9 +82,23 @@ export class LauncherComponent implements OnInit, OnDestroy {
     window.electronAPI?.launcher?.navigateToItem(item.id);
   }
 
-  close(): void {
-    window.electronAPI?.launcher?.close();
+  async copyTotp(item: VaultItem): Promise<void> {
+    if (this.totpCopying()) return;
+    this.totpCopying.set(true);
+    try {
+      const result = await window.electronAPI!.vault.getTotp(item.id);
+      if (result.success && result.code) {
+        await navigator.clipboard.writeText(result.code);
+        this.totpCopiedId.set(item.id);
+        if (this._copiedTimer) clearTimeout(this._copiedTimer);
+        this._copiedTimer = setTimeout(() => this.totpCopiedId.set(null), 2000);
+      }
+    } finally {
+      this.totpCopying.set(false);
+    }
   }
+
+  close(): void { window.electronAPI?.launcher?.close(); }
 
   getColor(name: string): string {
     const palette = ['#ef4444','#3b82f6','#f59e0b','#22c55e','#a855f7','#ec4899','#06b6d4'];

@@ -18,6 +18,7 @@ declare global {
         getItems: () => Promise<VaultItem[]>;
         getCachedItems: () => Promise<VaultItem[]>;
         getFolders: () => Promise<Folder[]>;
+        getTotp: (itemId: string) => Promise<{ success: boolean; code?: string; error?: string }>;
         sync: () => Promise<SyncResult>;
         editItem: (id: string, patch: Partial<VaultItem> & { folderId?: string | null; expiresAt?: string | null; username?: string; password?: string; website?: string }) => Promise<{ success: boolean; error?: string }>;
         createItem: (item: object) => Promise<{ success: boolean; item?: VaultItem; error?: string }>;
