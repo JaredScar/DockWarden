@@ -60,8 +60,9 @@ jobs:
 
       - name: Run semantic-release
         id: sr
-        run: npx semantic-release
-        working-directory: dockwarden
+        uses: cycjimmy/semantic-release-action@v4
+        with:
+          working_directory: dockwarden
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GIT_AUTHOR_NAME: github-actions[bot]
