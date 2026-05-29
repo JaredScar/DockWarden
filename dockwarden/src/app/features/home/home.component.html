@@ -1,0 +1,203 @@
+<div class="home">
+  <!-- Page Header -->
+  <div class="home-header">
+    <div>
+      <h1>Welcome back</h1>
+      <p class="subtitle">Your vault is secure and synchronized.</p>
+    </div>
+  </div>
+
+  <!-- Stats Cards -->
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-icon" style="background: linear-gradient(135deg, #2f81f7, #a371f7)">
+        <i class="fas fa-key"></i>
+      </div>
+      <div class="stat-value">{{ stats().totalItems }}</div>
+      <div class="stat-label">Total Items</div>
+      <div class="stat-sub">+12 this month</div>
+    </div>
+    <div class="stat-card" [routerLink]="['/expiry']" style="cursor:pointer">
+      <div class="stat-icon" style="background: linear-gradient(135deg, #f59e0b, #ef4444)">
+        <i class="fas fa-clock"></i>
+      </div>
+      <div class="stat-value">{{ stats().expiringSoon }}</div>
+      <div class="stat-label">Expiring Soon</div>
+      <div class="stat-sub">3 need attention</div>
+    </div>
+    <div class="stat-card" [routerLink]="['/tags']" style="cursor:pointer">
+      <div class="stat-icon" style="background: linear-gradient(135deg, #a855f7, #ec4899)">
+        <i class="fas fa-tags"></i>
+      </div>
+      <div class="stat-value">{{ stats().tagCount }}</div>
+      <div class="stat-label">Tags</div>
+      <div class="stat-sub">5 folders</div>
+    </div>
+    <div class="stat-card" [routerLink]="['/backup']" style="cursor:pointer">
+      <div class="stat-icon" style="background: linear-gradient(135deg, #22c55e, #16a34a)">
+        <i class="fas fa-database"></i>
+      </div>
+      <div class="stat-value">{{ formatTimeAgo(backupStatus.lastBackup) }}</div>
+      <div class="stat-label">Last Backup</div>
+      <div class="stat-sub">{{ formatNextBackup(backupStatus.nextScheduled) }}</div>
+    </div>
+  </div>
+
+  <!-- Main Dashboard Row -->
+  <div class="dashboard-grid">
+    <!-- Vault Health (widest) -->
+    <div class="card health-card">
+      <div class="card-header">
+        <div class="card-title-row">
+          <i class="fas fa-shield-halved card-icon"></i>
+          <h3>Vault Health</h3>
+          <span class="score-sub">Security score: {{ stats().securityScore }}/100</span>
+        </div>
+        <span class="badge badge-success">Good</span>
+      </div>
+
+      <div class="health-metrics">
+        <div class="metric">
+          <div class="metric-header">
+            <span class="metric-label">Strong Passwords</span>
+            <span class="metric-value">{{ stats().strongPasswords }}%</span>
+          </div>
+          <div class="progress-bar"><div class="fill green" [style.width.%]="stats().strongPasswords"></div></div>
+        </div>
+        <div class="metric">
+          <div class="metric-header">
+            <span class="metric-label">2FA Enabled</span>
+            <span class="metric-value">{{ stats().twoFAEnabled }}%</span>
+          </div>
+          <div class="progress-bar"><div class="fill blue" [style.width.%]="stats().twoFAEnabled"></div></div>
+        </div>
+        <div class="metric">
+          <div class="metric-header">
+            <span class="metric-label">No Duplicates</span>
+            <span class="metric-value">{{ stats().noDuplicates }}%</span>
+          </div>
+          <div class="progress-bar"><div class="fill purple" [style.width.%]="stats().noDuplicates"></div></div>
+        </div>
+        <div class="metric">
+          <div class="metric-header">
+            <span class="metric-label">Recently Updated</span>
+            <span class="metric-value">{{ stats().recentlyUpdated }}%</span>
+          </div>
+          <div class="progress-bar"><div class="fill orange" [style.width.%]="stats().recentlyUpdated"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Expiring Soon -->
+    <div class="card expiry-card">
+      <div class="card-header">
+        <div class="card-title-row">
+          <i class="fas fa-clock card-icon"></i>
+          <h3>Expiring Soon</h3>
+        </div>
+        <a [routerLink]="['/expiry']" class="view-all-link">View All →</a>
+      </div>
+      <div class="expiry-list">
+        @for (entry of expiringItems().slice(0, 5); track entry.item.id) {
+          <div class="expiry-item">
+            <i class="fas fa-key expiry-icon"></i>
+            <span class="expiry-name">{{ entry.item.name }}</span>
+            @if (entry.status === 'expired') {
+              <span class="badge badge-expired">Expired</span>
+            } @else if (entry.status === 'this-week') {
+              <span class="badge badge-warning">{{ getExpiryLabel(entry) }}</span>
+            } @else {
+              <span class="expiry-days">{{ getExpiryLabel(entry) }}</span>
+            }
+          </div>
+        }
+        @if (expiringItems().length === 0) {
+          <div class="empty-section"><i class="fas fa-circle-check" style="color:var(--accent-green);font-size:24px"></i><p>No items expiring soon</p></div>
+        }
+      </div>
+      <a [routerLink]="['/expiry']" class="review-link">
+        <i class="fas fa-gear"></i> Review All Expiring
+      </a>
+    </div>
+
+    <!-- Recent Activity -->
+    <div class="card activity-card">
+      <div class="card-header">
+        <div class="card-title-row">
+          <i class="fas fa-arrows-rotate card-icon"></i>
+          <h3>Recent Activity</h3>
+        </div>
+        <a [routerLink]="['/items']" class="view-all-link">View All →</a>
+      </div>
+      <div class="activity-list">
+        @for (activity of recentActivity(); track activity.id) {
+          <div class="activity-item">
+            <i class="{{ getItemIcon(activity.itemType) }} activity-icon"></i>
+            <div class="activity-info">
+              <span class="activity-name">{{ activity.itemName }}</span>
+              <span class="activity-action">{{ activity.action }}</span>
+            </div>
+            <span class="activity-time">{{ formatTimeAgo(activity.timestamp) }}</span>
+          </div>
+        }
+        @if (recentActivity().length === 0) {
+          <div class="empty-section"><p style="color:var(--text-muted);font-size:13px">No recent activity</p></div>
+        }
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom Row -->
+  <div class="bottom-grid">
+    <!-- Backup Status -->
+    <div class="card backup-card">
+      <div class="card-header">
+        <div class="card-title-row">
+          <i class="fas fa-database card-icon"></i>
+          <h3>Backups</h3>
+        </div>
+        <span class="badge badge-success">● Active</span>
+      </div>
+      <div class="backup-stats">
+        <div class="backup-stat">
+          <span class="backup-stat-label">Last backup</span>
+          <span class="backup-stat-value">{{ formatTimeAgo(backupStatus.lastBackup) }}</span>
+        </div>
+        <div class="backup-stat">
+          <span class="backup-stat-label">Next scheduled</span>
+          <span class="backup-stat-value">{{ formatNextBackup(backupStatus.nextScheduled) }}</span>
+        </div>
+        <div class="backup-stat">
+          <span class="backup-stat-label">Destinations</span>
+          <span class="backup-stat-value">Local + Cloud</span>
+        </div>
+        <div class="backup-stat">
+          <span class="backup-stat-label">Total backups</span>
+          <span class="backup-stat-value">{{ backupStatus.totalBackups }}</span>
+        </div>
+      </div>
+      <button class="btn btn-primary btn-backup" (click)="runBackup()" [disabled]="backupRunning()">
+        <i class="{{ backupRunning() ? 'fas fa-spinner fa-spin' : 'fas fa-database' }}"></i>
+        {{ backupRunning() ? 'Backing up...' : 'Backup Now' }}
+      </button>
+    </div>
+
+    <!-- Keyboard Shortcuts -->
+    <div class="card shortcuts-card">
+      <div class="card-header">
+        <div class="card-title-row">
+          <i class="fas fa-keyboard card-icon"></i>
+          <h3>Keyboard Shortcuts</h3>
+        </div>
+      </div>
+      <div class="shortcuts-grid">
+        <div class="shortcut-row"><kbd>Ctrl+Alt+A</kbd><span>Auto-Type</span></div>
+        <div class="shortcut-row"><kbd>Ctrl+Alt+\</kbd><span>Quick Search</span></div>
+        <div class="shortcut-row"><kbd>Ctrl+L</kbd><span>Lock Vault</span></div>
+        <div class="shortcut-row"><kbd>Ctrl+S</kbd><span>Sync Vault</span></div>
+        <div class="shortcut-row"><kbd>Ctrl+N</kbd><span>New Item</span></div>
+        <div class="shortcut-row"><kbd>Ctrl+E</kbd><span>Edit Item</span></div>
+      </div>
+    </div>
+  </div>
+</div>

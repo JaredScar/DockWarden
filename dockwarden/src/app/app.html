@@ -1,0 +1,249 @@
+@if (showShell()) {
+  <div class="app-shell">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <!-- Brand -->
+      <div class="sidebar-brand">
+        <div class="brand-logo">
+          <i class="fas fa-shield-halved brand-icon"></i>
+        </div>
+        <div class="brand-info">
+          <span class="brand-name">DockWarden</span>
+          <span class="brand-sub">My Vault</span>
+        </div>
+        <button class="btn-icon" style="margin-left: auto"><i class="fas fa-chevron-down"></i></button>
+      </div>
+
+      <!-- Quick Actions -->
+      <div class="sidebar-quick-actions">
+        <button class="btn-new-item" (click)="openNewItem()" title="New Item (Ctrl+N)">
+          <i class="fas fa-plus"></i> New Item
+        </button>
+        <button class="btn-icon-sm" (click)="openQuickSearch()" title="Quick Search (Ctrl+Alt+\)">
+          <i class="fas fa-magnifying-glass"></i>
+        </button>
+      </div>
+
+      <!-- Nav Items -->
+      <nav class="sidebar-nav">
+        <a routerLink="/home" routerLinkActive="active" class="nav-item">
+          <i class="fas fa-house nav-icon"></i>
+          <span class="nav-label">Home</span>
+        </a>
+        <a [routerLink]="['/items']" [queryParams]="{}"
+           routerLinkActive="active"
+           [routerLinkActiveOptions]="{ exact: true }"
+           class="nav-item">
+          <i class="fas fa-key nav-icon"></i>
+          <span class="nav-label">All Items</span>
+          <span class="nav-count">{{ stats().totalItems }}</span>
+        </a>
+      </nav>
+
+      <!-- Categories -->
+      <div class="sidebar-section">
+        <div class="section-label">CATEGORIES</div>
+        @for (folder of sidebarFolders(); track folder.id) {
+          <a [routerLink]="['/items']"
+             [queryParams]="getFolderQueryParams(folder.id)"
+             routerLinkActive="active"
+             [routerLinkActiveOptions]="{ exact: true }"
+             class="nav-item nav-item-sm">
+            <i class="{{ folder.icon }} nav-icon-sm"></i>
+            <span class="nav-label">{{ folder.label }}</span>
+            <span class="nav-count">{{ folder.count }}</span>
+          </a>
+        }
+        @if (sidebarFolders().length === 0) {
+          <span class="nav-empty">No folders yet</span>
+        }
+      </div>
+
+      <!-- Tags -->
+      <div class="sidebar-section">
+        <div class="section-label">TAGS</div>
+        @for (tag of allTags(); track tag.name) {
+          <a [routerLink]="['/items']"
+             [queryParams]="{ tag: tag.name }"
+             routerLinkActive="active"
+             [routerLinkActiveOptions]="{ exact: true }"
+             class="nav-item nav-item-sm">
+            <span class="tag-dot" [style.background]="tag.color"></span>
+            <span class="nav-label">{{ tag.name }}</span>
+          </a>
+        }
+      </div>
+
+      <!-- Pinned Smart Views -->
+      @if (pinnedViews().length > 0) {
+        <div class="sidebar-section">
+          <div class="section-label">VIEWS</div>
+          @for (view of pinnedViews(); track view.id) {
+            <a [routerLink]="['/items']"
+               [queryParams]="{ smartView: view.id }"
+               routerLinkActive="active"
+               [routerLinkActiveOptions]="{ exact: true }"
+               class="nav-item nav-item-sm">
+              <i class="fas fa-layer-group nav-icon-sm"></i>
+              <span class="nav-label">{{ view.name }}</span>
+              <span class="nav-count">{{ view.itemCount }}</span>
+            </a>
+          }
+        </div>
+      }
+
+      <!-- Tools -->
+      <div class="sidebar-section">
+        <div class="section-label">TOOLS</div>
+        <a routerLink="/tags" routerLinkActive="active" class="nav-item nav-item-sm">
+          <i class="fas fa-tags nav-icon-sm"></i>
+          <span class="nav-label">Tag Manager</span>
+        </a>
+        <a routerLink="/smart-views" routerLinkActive="active" class="nav-item nav-item-sm">
+          <i class="fas fa-layer-group nav-icon-sm"></i>
+          <span class="nav-label">Smart Views</span>
+        </a>
+        <a routerLink="/expiry" routerLinkActive="active" class="nav-item nav-item-sm">
+          <i class="fas fa-clock nav-icon-sm"></i>
+          <span class="nav-label">Expiring</span>
+          @if (stats().expiringSoon > 0) {
+            <span class="nav-count nav-count-warn">{{ stats().expiringSoon }}</span>
+          }
+        </a>
+        <a routerLink="/backup" routerLinkActive="active" class="nav-item nav-item-sm">
+          <i class="fas fa-database nav-icon-sm"></i>
+          <span class="nav-label">Backups</span>
+        </a>
+      </div>
+
+      <!-- Bottom -->
+      <div class="sidebar-bottom">
+        <a routerLink="/settings" routerLinkActive="active" class="nav-item nav-item-sm">
+          <i class="fas fa-gear nav-icon-sm"></i>
+          <span class="nav-label">Settings</span>
+        </a>
+        <button class="btn-icon" title="Sync vault" (click)="syncVault()" [class.spinning]="syncing()">
+          <i class="fas fa-arrows-rotate"></i>
+        </button>
+        <button class="btn-icon" title="Lock vault" (click)="lockVault()">
+          <i class="fas fa-lock"></i>
+        </button>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <router-outlet />
+    </main>
+  </div>
+} @else {
+  <router-outlet />
+}
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     NEW ITEM MODAL  (Ctrl+N) — stays in the main app window
+════════════════════════════════════════════════════════════════════════════ -->
+@if (newItemOpen()) {
+  <div class="overlay-backdrop" (click)="closeNewItem()">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <div class="modal-title">
+          <i class="fas fa-plus-circle"></i> New Vault Item
+        </div>
+        <button class="btn-icon" (click)="closeNewItem()"><i class="fas fa-xmark"></i></button>
+      </div>
+
+      <div class="modal-body">
+        <!-- Type selector -->
+        <div class="form-row">
+          <label class="form-label">Type</label>
+          <div class="type-tabs">
+            <button class="type-tab" [class.active]="newItemType() === 'login'" (click)="newItemType.set('login')">
+              <i class="fas fa-key"></i> Login
+            </button>
+            <button class="type-tab" [class.active]="newItemType() === 'note'" (click)="newItemType.set('note')">
+              <i class="fas fa-note-sticky"></i> Secure Note
+            </button>
+          </div>
+        </div>
+
+        <!-- Name -->
+        <div class="form-row">
+          <label class="form-label">Name <span class="required">*</span></label>
+          <input class="form-input" placeholder="e.g. GitHub"
+                 [ngModel]="newItemName()" (ngModelChange)="newItemName.set($event)" />
+        </div>
+
+        @if (newItemType() === 'login') {
+          <!-- Username -->
+          <div class="form-row">
+            <label class="form-label">Username / Email</label>
+            <input class="form-input" placeholder="user@example.com"
+                   [ngModel]="newItemUsername()" (ngModelChange)="newItemUsername.set($event)" />
+          </div>
+
+          <!-- Password -->
+          <div class="form-row">
+            <label class="form-label">Password</label>
+            <div class="input-with-action">
+              <input class="form-input"
+                     [type]="newItemShowPw() ? 'text' : 'password'"
+                     placeholder="••••••••"
+                     [ngModel]="newItemPassword()" (ngModelChange)="newItemPassword.set($event)" />
+              <button class="btn-icon-sm" type="button" (click)="newItemShowPw.update(v => !v)" title="Toggle visibility">
+                <i class="fas" [class.fa-eye]="!newItemShowPw()" [class.fa-eye-slash]="newItemShowPw()"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- Website -->
+          <div class="form-row">
+            <label class="form-label">Website</label>
+            <input class="form-input" placeholder="https://example.com"
+                   [ngModel]="newItemWebsite()" (ngModelChange)="newItemWebsite.set($event)" />
+          </div>
+        }
+
+        <!-- Notes -->
+        <div class="form-row">
+          <label class="form-label">Notes</label>
+          <textarea class="form-input form-textarea" rows="3" placeholder="Optional notes…"
+                    [ngModel]="newItemNotes()" (ngModelChange)="newItemNotes.set($event)"></textarea>
+        </div>
+
+        <!-- Folder -->
+        <div class="form-row">
+          <label class="form-label">Folder</label>
+          <select class="form-input form-select"
+                  [ngModel]="newItemFolder()" (ngModelChange)="newItemFolder.set($event)">
+            <option value="">— No Folder —</option>
+            @for (f of folders(); track f.id) {
+              <option [value]="f.id">{{ f.name }}</option>
+            }
+          </select>
+        </div>
+
+        @if (newItemError()) {
+          <div class="modal-error">
+            <i class="fas fa-circle-exclamation"></i> {{ newItemError() }}
+          </div>
+        }
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-ghost" (click)="closeNewItem()" [disabled]="newItemSaving()">Cancel</button>
+        <button class="btn btn-primary" (click)="saveNewItem()" [disabled]="newItemSaving()">
+          @if (newItemSaving()) {
+            <i class="fas fa-spinner fa-spin"></i> Saving…
+          } @else {
+            <i class="fas fa-plus"></i> Create Item
+          }
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Quick Search (Ctrl+Alt+\) and Auto-Type (Ctrl+Alt+A) open as dedicated
+     floating windows positioned on the active monitor — see LauncherComponent
+     and AutotypePickerComponent under features/launcher and features/autotype. -->

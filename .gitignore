@@ -1,0 +1,37 @@
+# ─── OS artifacts ────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+nul
+
+# ─── IDE / editor ─────────────────────────────────────────────────────────────
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/settings.json
+
+# ─── Node (root-level, if any) ───────────────────────────────────────────────
+node_modules/
+npm-debug.log*
+yarn-error.log*
+.pnp.*
+
+# ─── Electron build output ───────────────────────────────────────────────────
+dockwarden/dist/
+dockwarden/release/
+dockwarden/.angular/cache/
+
+# ─── Environment / secrets (never commit these) ──────────────────────────────
+.env
+.env.*
+*.env
+*.pem
+*.key
+*.p12
+*.pfx
+secrets.*
+config.local.*
+
+# ─── electron-store persisted data (lives in AppData, not project dir) ───────
+# Nothing to ignore here — electron-store writes outside the project folder.

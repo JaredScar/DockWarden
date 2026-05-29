@@ -1,0 +1,58 @@
+<div class="at-window">
+  <div class="at-header">
+    <div class="at-title">
+      <i class="fas fa-keyboard"></i> Auto-Type
+    </div>
+    <button class="close-btn" (click)="close()"><i class="fas fa-xmark"></i></button>
+  </div>
+
+  <div class="at-search">
+    <i class="fas fa-magnifying-glass search-icon"></i>
+    <input
+      class="search-input"
+      placeholder="Search login items…"
+      autofocus
+      [ngModel]="query()"
+      (ngModelChange)="query.set($event)"
+    />
+  </div>
+
+  <p class="at-desc">
+    Click an item to type its credentials into the previously focused window.
+  </p>
+
+  <div class="at-results">
+    @if (loading()) {
+      <div class="at-empty"><i class="fas fa-spinner fa-spin"></i> Loading…</div>
+    } @else if (results().length === 0) {
+      <div class="at-empty">No login items found</div>
+    } @else {
+      @for (item of results(); track item.id) {
+        <button class="result-row" (click)="runAutotype(item)" [disabled]="sending()">
+          <span class="avatar" [style.background]="getColor(item.name)">{{ getInitials(item.name) }}</span>
+          <span class="details">
+            <span class="item-name">{{ item.name }}</span>
+            @if (item.username) {
+              <span class="item-sub">{{ item.username }}</span>
+            }
+          </span>
+          <span class="type-action">
+            @if (sending()) { <i class="fas fa-spinner fa-spin"></i> }
+            @else { <i class="fas fa-keyboard"></i> Type }
+          </span>
+        </button>
+      }
+    }
+  </div>
+
+  <div class="at-footer">
+    <label class="checkbox-label">
+      <input type="checkbox" [ngModel]="pressEnter()" (ngModelChange)="pressEnter.set($event)" />
+      Press Enter after password
+    </label>
+    @if (error()) {
+      <span class="at-error"><i class="fas fa-circle-exclamation"></i> {{ error() }}</span>
+    }
+    <span class="hint"><kbd>Esc</kbd> Close</span>
+  </div>
+</div>

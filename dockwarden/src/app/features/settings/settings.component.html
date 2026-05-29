@@ -1,0 +1,479 @@
+<div class="settings-page">
+  <div class="page-header">
+    <h1>Settings</h1>
+    <p>Configure DockWarden preferences</p>
+  </div>
+
+  <div class="settings-grid">
+    <!-- Left column -->
+    <div class="settings-col">
+      <!-- Bitwarden Connection -->
+  <div class="settings-section card">
+    <div class="section-header">
+      <i class="fas fa-shield-halved section-icon"></i>
+      <div>
+        <h3>Bitwarden Connection</h3>
+        <p class="section-desc">Configure your Bitwarden CLI and server connection</p>
+      </div>
+    </div>
+
+    <div class="settings-rows">
+      <!-- CLI status -->
+      <div class="settings-row">
+        <div class="row-info">
+          <span class="row-label">CLI Status</span>
+          <span class="row-sub">
+            @if (bwCheckingCli()) { Checking... }
+            @else if (bwCliAvailable() === true) { bw {{ bwCliVersion() }} }
+            @else if (bwCliAvailable() === false) { CLI not found — install via <code>npm i -g @bitwarden/cli</code> }
+            @else { Not checked }
+          </span>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          @if (bwCliAvailable() === true) {
+            <span class="badge badge-success"><i class="fas fa-check"></i> Available</span>
+          } @else if (bwCliAvailable() === false) {
+            <span class="badge badge-expired"><i class="fas fa-xmark"></i> Not Found</span>
+          }
+          <button class="btn btn-secondary btn-sm" (click)="checkCli()" [disabled]="bwCheckingCli()">
+            <i class="{{ bwCheckingCli() ? 'fas fa-spinner fa-spin' : 'fas fa-arrows-rotate' }}"></i>
+            Check
+          </button>
+        </div>
+      </div>
+
+      <!-- CLI path -->
+      <div class="settings-row settings-row-stacked">
+        <div class="row-info">
+          <span class="row-label">CLI Path</span>
+          <span class="row-sub">Path to the <code>bw</code> binary (leave as <code>bw</code> if it's in your PATH)</span>
+        </div>
+        <div class="row-inline">
+          <div class="input-wrap">
+            <i class="fas fa-terminal input-icon-sm"></i>
+            <input
+              type="text"
+              class="form-control form-control-sm"
+              [ngModel]="bwCliPath()"
+              (ngModelChange)="bwCliPath.set($event)"
+              placeholder="bw"
+            />
+          </div>
+          <button class="btn btn-secondary btn-sm" (click)="saveCliPath()" [disabled]="savingCliPath()">
+            <i class="{{ savingCliPath() ? 'fas fa-spinner fa-spin' : 'fas fa-floppy-disk' }}"></i>
+            Save
+          </button>
+        </div>
+      </div>
+
+      <!-- Account -->
+      <div class="settings-row">
+        <div class="row-info">
+          <span class="row-label">Account</span>
+          <span class="row-sub">{{ bwEmail() || 'Not signed in' }}</span>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-secondary btn-sm" (click)="lockVault()">
+            <i class="fas fa-lock"></i> Lock
+          </button>
+          <button class="btn btn-secondary btn-sm" (click)="logoutVault()">
+            <i class="fas fa-right-from-bracket"></i> Sign Out
+          </button>
+        </div>
+      </div>
+
+      <!-- Server URL -->
+      <div class="settings-row">
+        <div class="row-info">
+          <span class="row-label">Server URL</span>
+          <span class="row-sub">{{ bwServerUrl() }}</span>
+        </div>
+        <button class="btn btn-secondary btn-sm">
+          <i class="fas fa-pen"></i> Change
+        </button>
+      </div>
+
+      <!-- Sync Interval -->
+      <div class="settings-row">
+        <div class="row-info">
+          <span class="row-label">Sync Interval</span>
+          <span class="row-sub">How often to sync with Bitwarden</span>
+        </div>
+        <select class="form-control settings-select" [ngModel]="syncInterval()" (ngModelChange)="syncInterval.set($event)">
+          @for (opt of syncIntervals; track opt) {
+            <option [value]="opt">{{ opt }}</option>
+          }
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- Keyboard Shortcuts -->
+    </div><!-- end left col -->
+
+    <!-- Right column -->
+    <div class="settings-col">
+      <!-- Keyboard Shortcuts -->
+  <div class="settings-section card">
+    <div class="section-header">
+      <i class="fas fa-keyboard section-icon"></i>
+      <div>
+        <h3>Keyboard Shortcuts</h3>
+        <p class="section-desc">Configure global hotkeys for quick access</p>
+      </div>
+    </div>
+
+    <div class="settings-rows">
+      <div class="settings-row">
+        <div class="row-info">
+          <span class="row-label">Quick Launcher</span>
+          <span class="row-sub">Open vault search popup</span>
+        </div>
+        <div class="shortcut-row">
+          <kbd>{{ launcherShortcut() }}</kbd>
+          <button class="btn btn-secondary btn-sm">Change</button>
+        </div>
+      </div>
+      <div class="settings-row">
+        <div class="row-info">
+          <span class="row-label">Auto-Type</span>
+          <span class="row-sub">Type credentials into focused app</span>
+        </div>
+        <div class="shortcut-row">
+          <kbd>{{ autotypeShortcut() }}</kbd>
+          <button class="btn btn-secondary btn-sm">Change</button>
+        </div>
+      </div>
+      <div class="settings-row">
+        <div class="row-info">
+          <span class="row-label">Lock Vault</span>
+          <span class="row-sub">Quickly lock your vault</span>
+        </div>
+        <div class="shortcut-row">
+          <kbd>{{ lockShortcut() }}</kbd>
+          <button class="btn btn-secondary btn-sm">Change</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Auto-Type -->
+  <div class="settings-section card">
+    <div class="section-header">
+      <i class="fas fa-computer-mouse section-icon"></i>
+      <div>
+        <h3>Auto-Type</h3>
+        <p class="section-desc">Configure auto-type behavior</p>
+      </div>
+    </div>
+
+    <div class="settings-rows">
+      <div class="settings-row">
+        <div class="row-info">
+          <span class="row-label">Keystroke Delay</span>
+          <span class="row-sub">Delay between keystrokes in ms</span>
+        </div>
+        <div class="shortcut-row">
+          <span class="row-value">{{ keystrokeDelay() }}ms</span>
+          <input type="range" min="10" max="200" step="5" [ngModel]="keystrokeDelay()" (ngModelChange)="keystrokeDelay.set($event)" class="range-input" />
+        </div>
+      </div>
+      <div class="settings-row">
+        <div class="row-info">
+          <span class="row-label">Auto Submit</span>
+          <span class="row-sub">Press Enter after typing credentials</span>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" [ngModel]="autoSubmit()" (ngModelChange)="autoSubmit.set($event)" />
+          <span class="slider"></span>
+        </label>
+      </div>
+      <div class="settings-row">
+        <div class="row-info">
+          <span class="row-label">Clear Clipboard</span>
+          <span class="row-sub">Auto-clear copied passwords after</span>
+        </div>
+        <div class="shortcut-row">
+          <span class="row-value">{{ clearClipboard() }}s</span>
+          <select class="form-control settings-select" [ngModel]="clearClipboard()" (ngModelChange)="clearClipboard.set(+$event)">
+            <option [value]="15">15 seconds</option>
+            <option [value]="30">30 seconds</option>
+            <option [value]="60">60 seconds</option>
+            <option [value]="0">Never</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Notifications -->
+  <div class="settings-section card">
+    <div class="section-header">
+      <i class="fas fa-bell section-icon"></i>
+      <div>
+        <h3>Notifications</h3>
+        <p class="section-desc">Configure notification preferences</p>
+      </div>
+    </div>
+
+    <div class="settings-rows">
+      <div class="settings-row">
+        <div class="row-info">
+          <span class="row-label">Expiry Reminders</span>
+          <span class="row-sub">Notify when passwords are expiring</span>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" [ngModel]="expiryReminders()" (ngModelChange)="expiryReminders.set($event)" />
+          <span class="slider"></span>
+        </label>
+      </div>
+      <div class="settings-row">
+        <div class="row-info">
+          <span class="row-label">Backup Alerts</span>
+          <span class="row-sub">Notify on backup failures</span>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" [ngModel]="backupAlerts()" (ngModelChange)="backupAlerts.set($event)" />
+          <span class="slider"></span>
+        </label>
+      </div>
+      <div class="settings-row">
+        <div class="row-info">
+          <span class="row-label">Sync Status</span>
+          <span class="row-sub">Notify on sync errors</span>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" [ngModel]="syncStatus()" (ngModelChange)="syncStatus.set($event)" />
+          <span class="slider"></span>
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <!-- Security -->
+  <div class="settings-section card">
+    <div class="section-header">
+      <i class="fas fa-shield-halved section-icon"></i>
+      <div>
+        <h3>Security</h3>
+        <p class="section-desc">Security and lock settings</p>
+      </div>
+    </div>
+
+    <div class="settings-rows">
+      <div class="settings-row">
+        <div class="row-info">
+          <span class="row-label">Auto-Lock</span>
+          <span class="row-sub">Lock vault after inactivity</span>
+        </div>
+        <select class="form-control settings-select" [ngModel]="autoLock()" (ngModelChange)="autoLock.set($event)">
+          @for (opt of autoLockOptions; track opt) {
+            <option [value]="opt">{{ opt }}</option>
+          }
+        </select>
+      </div>
+      <div class="settings-row">
+        <div class="row-info">
+          <span class="row-label">Lock on System Sleep</span>
+          <span class="row-sub">Lock vault when computer sleeps</span>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" [ngModel]="lockOnSleep()" (ngModelChange)="lockOnSleep.set($event)" />
+          <span class="slider"></span>
+        </label>
+      </div>
+      <div class="settings-row">
+        <div class="row-info">
+          <span class="row-label">Biometric Unlock</span>
+          <span class="row-sub">Use Touch ID / Windows Hello</span>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" [ngModel]="biometricUnlock()" (ngModelChange)="biometricUnlock.set($event)" />
+          <span class="slider"></span>
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <!-- Appearance -->
+  <div class="settings-section card">
+    <div class="section-header">
+      <i class="fas fa-palette section-icon"></i>
+      <div>
+        <h3>Appearance</h3>
+        <p class="section-desc">Customize the look and feel</p>
+      </div>
+    </div>
+
+    <div class="settings-rows">
+      <div class="settings-row">
+        <div class="row-info">
+          <span class="row-label">Theme</span>
+          <span class="row-sub">Choose your preferred theme</span>
+        </div>
+        <select class="form-control settings-select" [ngModel]="theme()" (ngModelChange)="theme.set($event)">
+          @for (opt of themes; track opt) {
+            <option [value]="opt">{{ opt }}</option>
+          }
+        </select>
+      </div>
+      <div class="settings-row">
+        <div class="row-info">
+          <span class="row-label">Start Minimized</span>
+          <span class="row-sub">Start in system tray</span>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" [ngModel]="startMinimized()" (ngModelChange)="startMinimized.set($event)" />
+          <span class="slider"></span>
+        </label>
+      </div>
+      <div class="settings-row">
+        <div class="row-info">
+          <span class="row-label">Start with System</span>
+          <span class="row-sub">Launch on login</span>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" [ngModel]="startWithSystem()" (ngModelChange)="startWithSystem.set($event)" />
+          <span class="slider"></span>
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <!-- About -->
+      <div class="settings-section card">
+    <div class="section-header">
+      <i class="fas fa-circle-info section-icon"></i>
+      <div>
+        <h3>About</h3>
+      </div>
+    </div>
+
+    <div class="settings-rows">
+      <div class="settings-row">
+        <div class="row-info">
+          <span class="row-label">DockWarden</span>
+          <span class="row-sub">Version 1.0.0</span>
+        </div>
+        <button class="btn btn-secondary btn-sm">Check for Updates</button>
+      </div>
+      <div class="about-links">
+        <a href="#" class="about-link">Documentation</a>
+        <a href="#" class="about-link">GitHub</a>
+        <a href="#" class="about-link">Report Issue</a>
+      </div>
+    </div>
+  </div><!-- end right col -->
+  </div><!-- end settings-grid -->
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       ADVANCED — Custom CSS Editor
+  ════════════════════════════════════════════════════════════════════════ -->
+  <div class="settings-section card advanced-section">
+    <div class="section-header">
+      <i class="fas fa-code section-icon"></i>
+      <div>
+        <h3>Advanced — Custom CSS</h3>
+        <p class="section-desc">
+          Inject custom CSS that overrides the app's default styles. Changes are applied live and persisted across restarts.
+        </p>
+      </div>
+      <div class="css-header-actions">
+        <label class="toggle-label">
+          <span class="toggle-text">Live preview</span>
+          <label class="toggle">
+            <input type="checkbox" [ngModel]="cssLivePreview()" (ngModelChange)="cssLivePreview.set($event)" />
+            <span class="slider"></span>
+          </label>
+        </label>
+        @if (cssSaved()) {
+          <span class="css-saved-badge"><i class="fas fa-check"></i> Saved</span>
+        }
+        @if (cssDirty() && !cssSaved()) {
+          <span class="css-dirty-badge">Unsaved changes</span>
+        }
+        <button class="btn btn-secondary btn-sm" (click)="resetCustomCss()" [disabled]="!customCss()">
+          <i class="fas fa-rotate-left"></i> Reset
+        </button>
+        <button class="btn btn-primary btn-sm" (click)="saveCustomCss()" [disabled]="cssSaving() || !cssDirty()">
+          @if (cssSaving()) { <i class="fas fa-spinner fa-spin"></i> Saving… }
+          @else { <i class="fas fa-floppy-disk"></i> Save }
+        </button>
+      </div>
+    </div>
+
+    <!-- Quick presets -->
+    <div class="css-presets">
+      <span class="presets-label">Quick presets:</span>
+      @for (p of cssPresets; track p.label) {
+        <button class="preset-chip" (click)="insertPreset(p.css)" title="{{ p.css }}">
+          <i class="{{ p.icon }}"></i> {{ p.label }}
+        </button>
+      }
+    </div>
+
+    <!-- Editor + variable reference -->
+    <div class="css-editor-layout">
+      <!-- Code editor -->
+      <div class="css-editor-wrap">
+        <div class="css-editor-gutter">
+          @for (n of cssLineNumbers(); track n) {
+            <span>{{ n }}</span>
+          }
+        </div>
+        <textarea
+          class="css-editor"
+          spellcheck="false"
+          autocomplete="off"
+          autocorrect="off"
+          autocapitalize="off"
+          placeholder="/* Write your custom CSS here */
+/* Press Ctrl+S to save, Tab to indent */
+
+/* Example: change the accent colour */
+:root {
+  --accent-blue: #8b5cf6;
+  --bg-selected: rgba(139, 92, 246, 0.15);
+}"
+          [ngModel]="customCss()"
+          (ngModelChange)="onCssChange($event)"
+          (keydown)="onCssKeydown($event)"
+        ></textarea>
+      </div>
+
+      <!-- Variable reference panel -->
+      <div class="css-var-panel">
+        <div class="var-panel-header">
+          <span>CSS Variables</span>
+          <button class="btn-icon-tiny" (click)="showVarRef.update(v => !v)" title="Toggle panel">
+            <i class="fas" [class.fa-chevron-right]="!showVarRef()" [class.fa-chevron-left]="showVarRef()"></i>
+          </button>
+        </div>
+        @if (showVarRef()) {
+          <div class="var-groups">
+            @for (group of cssVarGroups; track group.label) {
+              <div class="var-group">
+                <div class="var-group-label">{{ group.label }}</div>
+                @for (v of group.vars; track v.name) {
+                  <button class="var-row" (click)="copyVarName(v.name)" title="Click to copy var({{ v.name }})">
+                    <code>{{ v.name }}</code>
+                    <span class="var-desc">{{ v.desc }}</span>
+                    <i class="fas fa-copy var-copy-icon"></i>
+                  </button>
+                }
+              </div>
+            }
+          </div>
+        }
+      </div>
+    </div>
+
+    <div class="css-footer">
+      <span class="css-hint"><kbd>Tab</kbd> indent &nbsp;·&nbsp; <kbd>Ctrl+S</kbd> save</span>
+      <span class="css-line-count">{{ customCss().split('\n').length }} lines</span>
+    </div>
+  </div>
+
+</div>
+
+

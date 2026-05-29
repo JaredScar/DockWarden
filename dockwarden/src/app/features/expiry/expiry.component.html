@@ -1,0 +1,118 @@
+<div class="expiry-page">
+  <div class="page-header">
+    <div class="page-title">
+      <h1>Password Expiry</h1>
+      <p>Track and manage credential expirations</p>
+    </div>
+    <div class="header-actions">
+      <button class="btn btn-secondary">
+        <i class="fas fa-download"></i> Export Report
+      </button>
+      <button class="btn btn-secondary">
+        <i class="fas fa-bell"></i> Reminder Settings
+      </button>
+    </div>
+  </div>
+
+  <!-- Summary Cards -->
+  <div class="expiry-summary">
+    <div class="summary-card expired-card">
+      <div class="summary-label">Expired</div>
+      <div class="summary-value">{{ expiredItems().length }}</div>
+      <i class="fas fa-triangle-exclamation summary-icon"></i>
+    </div>
+    <div class="summary-card week-card">
+      <div class="summary-label">This Week</div>
+      <div class="summary-value">{{ thisWeekItems().length }}</div>
+      <i class="fas fa-clock summary-icon"></i>
+    </div>
+    <div class="summary-card month-card">
+      <div class="summary-label">This Month</div>
+      <div class="summary-value">{{ thisMonthItems().length }}</div>
+      <i class="fas fa-calendar summary-icon"></i>
+    </div>
+  </div>
+
+  <!-- Two-column: list + reminder rules -->
+  <div class="expiry-content">
+    <!-- Left: Items List -->
+    <div>
+      <!-- Tabs -->
+      <div class="tabs">
+        <button class="tab" [class.active]="activeTab() === 'all'" (click)="activeTab.set('all')">All</button>
+        <button class="tab" [class.active]="activeTab() === 'expired'" (click)="activeTab.set('expired')">
+          Expired ({{ expiredItems().length }})
+        </button>
+        <button class="tab" [class.active]="activeTab() === 'this-week'" (click)="activeTab.set('this-week')">This Week</button>
+        <button class="tab" [class.active]="activeTab() === 'this-month'" (click)="activeTab.set('this-month')">This Month</button>
+      </div>
+
+      <!-- Items List -->
+      <div class="expiry-list">
+        @for (entry of displayedItems(); track entry.item.id) {
+          <div class="expiry-row" [class.is-expired]="entry.status === 'expired'" [class.is-snoozed]="isSnooze(entry.item.id)">
+            <div class="item-icon-col">
+              <div class="item-avatar"><i class="fas fa-key"></i></div>
+            </div>
+            <div class="item-info">
+              <div class="item-name-row">
+                <span class="item-name">{{ entry.item.name }}</span>
+                @if (isSnooze(entry.item.id)) {
+                  <span class="badge badge-info"><i class="fas fa-bell-slash"></i> Snoozed</span>
+                } @else {
+                  <span class="badge {{ getStatusBadge(entry.status, entry.days).cssClass }}">
+                    {{ getStatusBadge(entry.status, entry.days).label }}
+                  </span>
+                }
+              </div>
+              <div class="item-meta">
+                {{ entry.item.username }} · Expires {{ getExpiryDate(entry.item) }}
+              </div>
+            </div>
+            <div class="item-actions">
+              <button class="btn btn-secondary btn-sm" title="Mark as updated">
+                <i class="fas fa-arrows-rotate"></i> Update
+              </button>
+              <button class="btn-icon" title="Snooze" (click)="snoozeItem(entry.item.id)">
+                <i class="fas fa-ellipsis-h"></i>
+              </button>
+            </div>
+          </div>
+        }
+
+        @if (displayedItems().length === 0) {
+          <div class="empty-state">
+            <i class="fas fa-circle-check empty-icon"></i>
+            <p>No items in this category</p>
+          </div>
+        }
+      </div>
+    </div>
+
+    <!-- Right: Reminder Rules -->
+    <div class="reminder-rules card">
+      <h3>Reminder Rules</h3>
+      <p class="rules-desc">Configure when you want to be notified about expiring passwords</p>
+      <div class="rules-list">
+        @for (rule of [
+          { label: 'Notify 30 days before expiry', active: true },
+          { label: 'Notify 7 days before expiry', active: true },
+          { label: 'Notify on expiry date', active: true },
+          { label: 'Notify daily for expired items', active: true }
+        ]; track rule.label) {
+          <div class="rule-row">
+            <i class="fas fa-bell rule-icon"></i>
+            <span class="rule-label">{{ rule.label }}</span>
+            <label class="toggle">
+              <input type="checkbox" [checked]="rule.active" />
+              <span class="slider"></span>
+            </label>
+            <span class="badge" [class]="rule.active ? 'badge-success' : 'badge-count'">
+              {{ rule.active ? 'Active' : 'Inactive' }}
+            </span>
+          </div>
+        }
+      </div>
+    </div>
+  </div>
+</div>

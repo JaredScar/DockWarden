@@ -1,0 +1,322 @@
+<div class="items-layout">
+  <!-- Left Panel: Search + List -->
+  <div class="items-panel">
+    <div class="search-wrapper">
+      <i class="fas fa-magnifying-glass search-icon"></i>
+      <input
+        class="search-input"
+        [placeholder]="searchPlaceholder()"
+        [ngModel]="searchQuery()"
+        (ngModelChange)="searchQuery.set($event)"
+      />
+    </div>
+
+    <div class="list-header">
+      <span class="list-title">
+        @if (activeParams()['favorites']) { <i class="fas fa-star" style="color:var(--accent-yellow);font-size:11px;margin-right:4px"></i> }
+        @else if (activeParams()['noFolder']) { <i class="fas fa-inbox" style="font-size:11px;margin-right:4px;color:var(--text-muted)"></i> }
+        @else if (activeParams()['folder']) { <i class="fas fa-folder" style="font-size:11px;margin-right:4px;color:var(--text-muted)"></i> }
+        @else if (activeParams()['smartView']) { <i class="fas fa-layer-group" style="font-size:11px;margin-right:4px;color:var(--accent-blue)"></i> }
+        @else if (activeParams()['tag']) { <i class="fas fa-tag" style="font-size:11px;margin-right:4px;color:var(--text-muted)"></i> }
+        {{ listTitle() }}
+      </span>
+      <span class="list-count">{{ filteredItems().length }} items</span>
+    </div>
+
+    <div class="items-list">
+      @for (group of groupedItems(); track group[0]) {
+        <div class="group-letter">{{ group[0] }}</div>
+        @for (item of group[1]; track item.id) {
+          <div class="item-row" [class.selected]="selectedItem()?.id === item.id" (click)="selectItem(item)">
+            <div class="item-avatar" [style.background]="getItemColor(item)">{{ getInitials(item.name) }}</div>
+            <div class="item-info">
+              <div class="item-name">
+                {{ item.name }}
+                @if (item.favorite) { <i class="fas fa-star fav-star"></i> }
+              </div>
+              <div class="item-username">
+                @if (item.username) { {{ item.username }} }
+                @else if (item.cardNumber) { {{ item.cardNumber }} }
+                @else { Secure Note }
+              </div>
+            </div>
+            @if (getExpiryBadge(item); as badge) {
+              <span class="badge {{ badge.class }}">{{ badge.label }}</span>
+            }
+          </div>
+        }
+      }
+    </div>
+  </div>
+
+  <!-- Right Panel: Detail View -->
+  <div class="detail-panel" [class.is-editing]="editing()">
+    @if (selectedItem(); as item) {
+
+      <!-- Header -->
+      <div class="detail-header">
+        <div class="detail-avatar" [style.background]="getItemColor(item)">
+          {{ getInitials(editing() ? editName() : item.name) }}
+        </div>
+        <div class="detail-title">
+          @if (editing()) {
+            <input class="edit-name-inline" [ngModel]="editName()" (ngModelChange)="editName.set($event)" placeholder="Item name" />
+            @if (item.type === 'login') {
+              <input class="edit-url-inline" [ngModel]="editWebsite()" (ngModelChange)="editWebsite.set($event)" placeholder="https://example.com" />
+            }
+          } @else {
+            <h2>{{ item.name }}</h2>
+            @if (item.website) {
+              <a [href]="item.website" class="detail-url">{{ item.website }}</a>
+            }
+          }
+        </div>
+        <div class="detail-actions">
+          @if (item.favorite && !editing()) {
+            <button class="btn-icon" title="Favorited"><i class="fas fa-star"></i></button>
+          }
+          @if (!editing()) {
+            <button class="btn-icon" title="Copy URL" (click)="item.website && copyToClipboard(item.website, 'url')">
+              <i class="fas fa-link"></i>
+            </button>
+            <button class="btn-icon btn-edit" title="Edit item" (click)="startEdit()">
+              <i class="fas fa-pen-to-square"></i>
+            </button>
+          } @else {
+            <button class="btn-save-inline" (click)="saveEdit()" [disabled]="saving()">
+              <i class="{{ saving() ? 'fas fa-spinner fa-spin' : 'fas fa-floppy-disk' }}"></i>
+              {{ saving() ? 'Saving…' : 'Save' }}
+            </button>
+            <button class="btn-cancel-inline" (click)="cancelEdit()" [disabled]="saving()">
+              Cancel
+            </button>
+          }
+        </div>
+      </div>
+
+      <!-- Error banner -->
+      @if (saveError()) {
+        <div class="save-error-banner">
+          <i class="fas fa-circle-exclamation"></i> {{ saveError() }}
+        </div>
+      }
+
+      <!-- Fields -->
+      <div class="detail-fields">
+
+        <!-- USERNAME -->
+        @if (item.username || editing()) {
+          <div class="field-group">
+            <div class="field-label">USERNAME</div>
+            @if (editing()) {
+              <div class="field-edit-row">
+                <input class="field-input" type="text" autocomplete="off"
+                       [ngModel]="editUsername()" (ngModelChange)="editUsername.set($event)"
+                       placeholder="username or email" />
+                <button class="btn-icon copy-btn" (click)="copyToClipboard(editUsername(), 'username')" [class.copied]="copiedField() === 'username'" title="Copy">
+                  <i class="{{ copiedField() === 'username' ? 'fas fa-check' : 'fas fa-copy' }}"></i>
+                </button>
+              </div>
+            } @else {
+              <div class="field-value-row">
+                <span class="field-value">{{ item.username }}</span>
+                <button class="btn-icon copy-btn" (click)="copyToClipboard(item.username!, 'username')" [class.copied]="copiedField() === 'username'">
+                  <i class="{{ copiedField() === 'username' ? 'fas fa-check' : 'fas fa-copy' }}"></i>
+                </button>
+              </div>
+            }
+          </div>
+        }
+
+        <!-- PASSWORD -->
+        @if (item.password || editing()) {
+          <div class="field-group">
+            <div class="field-label">PASSWORD</div>
+            @if (editing()) {
+              <div class="field-edit-row">
+                <input class="field-input" [type]="showEditPassword() ? 'text' : 'password'"
+                       autocomplete="new-password"
+                       [ngModel]="editPassword()" (ngModelChange)="editPassword.set($event)"
+                       placeholder="password" />
+                <button class="btn-icon" (click)="showEditPassword.set(!showEditPassword())">
+                  <i class="{{ showEditPassword() ? 'fas fa-eye-slash' : 'fas fa-eye' }}"></i>
+                </button>
+                <button class="btn-icon copy-btn" (click)="copyToClipboard(editPassword(), 'password')" [class.copied]="copiedField() === 'password'" title="Copy">
+                  <i class="{{ copiedField() === 'password' ? 'fas fa-check' : 'fas fa-copy' }}"></i>
+                </button>
+              </div>
+            } @else {
+              <div class="field-value-row">
+                <span class="field-value password-value">{{ showPassword() ? item.password : '•'.repeat(16) }}</span>
+                <div class="field-actions">
+                  <button class="btn-icon" (click)="showPassword.set(!showPassword())">
+                    <i class="{{ showPassword() ? 'fas fa-eye-slash' : 'fas fa-eye' }}"></i>
+                  </button>
+                  <button class="btn-icon copy-btn" (click)="copyToClipboard(item.password!, 'password')" [class.copied]="copiedField() === 'password'">
+                    <i class="{{ copiedField() === 'password' ? 'fas fa-check' : 'fas fa-copy' }}"></i>
+                  </button>
+                </div>
+              </div>
+              @if (item.passwordStrength !== null) {
+                <div class="strength-bar">
+                  <div class="strength-fill" [style.width.%]="item.passwordStrength" [style.background]="getPasswordStrengthColor(item.passwordStrength)"></div>
+                </div>
+                <div class="strength-label" [style.color]="getPasswordStrengthColor(item.passwordStrength)">
+                  {{ getPasswordStrengthLabel(item.passwordStrength) }}
+                </div>
+              }
+            }
+          </div>
+        }
+
+        <!-- WEBSITE (read-only view only — editable version is in header) -->
+        @if (!editing() && item.website) {
+          <div class="field-group">
+            <div class="field-label">WEBSITE</div>
+            <div class="field-value-row">
+              <span class="field-value">{{ item.website }}</span>
+            </div>
+          </div>
+        }
+
+        <!-- TOTP (always read-only) -->
+        @if (item.totp) {
+          <div class="field-group">
+            <div class="field-label">ONE-TIME PASSWORD</div>
+            <div class="field-value-row">
+              <span class="field-value totp-value">{{ totpDisplay }}</span>
+              <div class="field-actions">
+                <i class="fas fa-rotate-right totp-ring"></i>
+                <button class="btn-icon copy-btn" (click)="copyToClipboard(item.totp!, 'totp')" [class.copied]="copiedField() === 'totp'">
+                  <i class="{{ copiedField() === 'totp' ? 'fas fa-check' : 'fas fa-copy' }}"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+        }
+
+        <!-- CARD NUMBER (read-only) -->
+        @if (item.cardNumber) {
+          <div class="field-group">
+            <div class="field-label">CARD NUMBER</div>
+            <div class="field-value-row">
+              <span class="field-value">{{ item.cardNumber }}</span>
+              <button class="btn-icon copy-btn" (click)="copyToClipboard(item.cardNumber!, 'card')">
+                <i class="fas fa-copy"></i>
+              </button>
+            </div>
+          </div>
+        }
+
+        <!-- NOTES -->
+        @if (item.notes || editing()) {
+          <div class="field-group">
+            <div class="field-label">NOTES</div>
+            @if (editing()) {
+              <textarea class="field-textarea" rows="3"
+                        [ngModel]="editNotes()" (ngModelChange)="editNotes.set($event)"
+                        placeholder="Optional notes..."></textarea>
+            } @else {
+              <div class="field-value notes-value">{{ item.notes }}</div>
+            }
+          </div>
+        }
+
+        <!-- TAGS -->
+        @if (item.tags.length > 0 || editing()) {
+          <div class="field-group">
+            <div class="field-label">TAGS</div>
+            @if (editing()) {
+              <div class="tag-editor">
+                <div class="tag-chips-input">
+                  @for (tag of editTags(); track tag) {
+                    <span class="tag-chip editable">
+                      {{ tag }}
+                      <button class="tag-remove" (click)="removeTag(tag)" type="button"><i class="fas fa-xmark"></i></button>
+                    </span>
+                  }
+                  <input class="tag-input-inline" placeholder="Add tag, Enter…"
+                         [ngModel]="newTagInput()" (ngModelChange)="newTagInput.set($event)"
+                         (keydown)="addTagOnEnter($event)" type="text" />
+                </div>
+                <button class="btn-add-tag" (click)="addTag()" type="button"><i class="fas fa-plus"></i></button>
+              </div>
+              <p class="edit-hint">Press Enter or comma to add. Spaces become dashes.</p>
+            } @else {
+              <div class="tags-row">
+                @for (tag of item.tags; track tag) {
+                  <span class="tag-chip">{{ tag }}</span>
+                }
+              </div>
+            }
+          </div>
+        }
+
+        <!-- EXPIRY DATE -->
+        @if (editing() || getExpiryBadge(item)) {
+          <div class="field-group">
+            <div class="field-label">EXPIRY DATE</div>
+            @if (editing()) {
+              <div class="field-edit-row">
+                <i class="fas fa-calendar-xmark" style="color:var(--text-muted);font-size:13px;margin-right:8px"></i>
+                <input type="date" class="field-input"
+                       [ngModel]="editExpiry()" (ngModelChange)="editExpiry.set($event)" />
+                @if (editExpiry()) {
+                  <button class="btn-icon" (click)="editExpiry.set('')" title="Clear"><i class="fas fa-xmark"></i></button>
+                }
+              </div>
+              <p class="edit-hint">Leave blank for no expiry.</p>
+            } @else {
+              @if (getExpiryBadge(item); as badge) {
+                <div class="expiry-warning" [class.expired]="badge.class === 'badge-expired'">
+                  <i class="fas fa-triangle-exclamation"></i>
+                  <div>
+                    <strong>Password Expiring Soon</strong>
+                    <div class="expiry-detail">Expires in {{ vaultService.getDaysUntilExpiry(item) }} days</div>
+                  </div>
+                </div>
+              }
+            }
+          </div>
+        }
+
+        <!-- FOLDER -->
+        @if (editing() || item.folderId) {
+          <div class="field-group">
+            <div class="field-label">FOLDER</div>
+            @if (editing()) {
+              <div class="field-edit-row">
+                <i class="fas fa-folder" style="color:var(--text-muted);font-size:13px;margin-right:8px"></i>
+                <select class="field-select" [ngModel]="editFolder()" (ngModelChange)="editFolder.set($event)">
+                  <option value="">No Folder</option>
+                  @for (folder of folders(); track folder.id) {
+                    <option [value]="folder.id">{{ folder.name }}</option>
+                  }
+                </select>
+              </div>
+            } @else {
+              <div class="field-value-row">
+                <i class="fas fa-folder field-icon-sm"></i>
+                <span class="field-value">{{ getFolderName(item.folderId) }}</span>
+              </div>
+            }
+          </div>
+        }
+
+        <!-- META (read mode only) -->
+        @if (!editing()) {
+          <div class="field-meta">
+            <div>Last edited: {{ item.lastModified | date:'medium' }}</div>
+            <div>Created: {{ item.createdAt | date:'medium' }}</div>
+          </div>
+        }
+      </div>
+
+    } @else {
+      <div class="empty-detail">
+        <i class="fas fa-lock empty-icon"></i>
+        <p>Select an item to view details</p>
+      </div>
+    }
+  </div>
+</div>

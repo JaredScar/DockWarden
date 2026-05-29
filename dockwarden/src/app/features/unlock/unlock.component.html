@@ -1,0 +1,184 @@
+<div class="unlock-shell">
+  <div class="unlock-card">
+    <!-- Logo / Brand -->
+    <div class="unlock-brand">
+      <div class="brand-icon-wrap">
+        <i class="fas fa-shield-halved"></i>
+      </div>
+      <h1>DockWarden</h1>
+      <p class="brand-sub">Bitwarden Companion</p>
+    </div>
+
+    <!-- Mode heading -->
+    <div class="unlock-heading">
+      @if (mode() === 'unlock') {
+        <h2>Unlock Your Vault</h2>
+        @if (email()) {
+          <p class="unlock-email"><i class="fas fa-user"></i> {{ email() }}</p>
+        }
+      } @else if (mode() === 'login') {
+        <h2>Sign In to Bitwarden</h2>
+      } @else {
+        <h2>Two-Factor Verification</h2>
+        <p class="unlock-email"><i class="fas fa-envelope"></i> Check your email — a verification code was sent</p>
+      }
+    </div>
+
+    <!-- Error -->
+    @if (errorMessage()) {
+      <div class="error-banner">
+        <i class="fas fa-circle-exclamation"></i>
+        {{ errorMessage() }}
+      </div>
+    }
+
+    <form (ngSubmit)="submit()">
+      <!-- ── TWO-FACTOR STEP ── -->
+      @if (mode() === 'two-factor') {
+        <div class="field-group">
+          <label for="tfMethod">Verification Method</label>
+          <select id="tfMethod" class="form-control" [ngModel]="twoFactorMethod()" (ngModelChange)="twoFactorMethod.set(+$event)" name="tfMethod">
+            @for (m of twoFactorMethods; track m.value) {
+              <option [value]="m.value">{{ m.label }}</option>
+            }
+          </select>
+        </div>
+
+        <div class="field-group">
+          <label for="tfCode">Verification Code</label>
+          <div class="input-wrap">
+            <i class="fas fa-mobile-screen-button input-icon"></i>
+            <input
+              id="tfCode"
+              type="text"
+              inputmode="numeric"
+              class="form-control totp-input"
+              placeholder="123456"
+              [ngModel]="twoFactorCode()"
+              (ngModelChange)="twoFactorCode.set($event)"
+              name="tfCode"
+              autocomplete="one-time-code"
+              autofocus
+              required
+            />
+          </div>
+          <p class="field-hint">Enter the code from the email that was just sent to your inbox.</p>
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-full" [disabled]="loading()">
+          @if (loading()) {
+            <i class="fas fa-spinner fa-spin"></i> Verifying...
+          } @else {
+            <i class="fas fa-check-circle"></i> Verify
+          }
+        </button>
+
+        <div class="unlock-footer">
+          <button type="button" class="link-btn" (click)="mode.set('login'); errorMessage.set('')">
+            <i class="fas fa-arrow-left"></i> Back to sign in
+          </button>
+        </div>
+      }
+
+      <!-- ── UNLOCK / LOGIN STEP ── -->
+      @if (mode() !== 'two-factor') {
+
+      <!-- Email field (login mode only) -->
+      @if (mode() === 'login') {
+        <div class="field-group">
+          <label for="email">Email address</label>
+          <div class="input-wrap">
+            <i class="fas fa-envelope input-icon"></i>
+            <input
+              id="email"
+              type="email"
+              class="form-control"
+              placeholder="you@example.com"
+              [ngModel]="email()"
+              (ngModelChange)="email.set($event)"
+              name="email"
+              autocomplete="email"
+              required
+            />
+          </div>
+        </div>
+      }
+
+      <!-- Password field -->
+      <div class="field-group">
+        <label for="password">Master Password</label>
+        <div class="input-wrap">
+          <i class="fas fa-lock input-icon"></i>
+          <input
+            id="password"
+            [type]="showPassword() ? 'text' : 'password'"
+            class="form-control"
+            placeholder="Enter your master password"
+            [ngModel]="password()"
+            (ngModelChange)="password.set($event)"
+            name="password"
+            autocomplete="current-password"
+            required
+          />
+          <button
+            type="button"
+            class="toggle-password"
+            (click)="showPassword.set(!showPassword())"
+            tabindex="-1"
+          >
+            <i class="{{ showPassword() ? 'fas fa-eye-slash' : 'fas fa-eye' }}"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Advanced / Server URL (login mode) -->
+      @if (mode() === 'login') {
+        <button type="button" class="advanced-toggle" (click)="showAdvanced.set(!showAdvanced())">
+          <i class="fas fa-chevron-{{ showAdvanced() ? 'up' : 'down' }}"></i>
+          {{ showAdvanced() ? 'Hide' : 'Show' }} Advanced Options
+        </button>
+
+        @if (showAdvanced()) {
+          <div class="field-group">
+            <label for="serverUrl">Server URL (self-hosted)</label>
+            <div class="input-wrap">
+              <i class="fas fa-server input-icon"></i>
+              <input
+                id="serverUrl"
+                type="url"
+                class="form-control"
+                placeholder="https://vault.example.com"
+                [ngModel]="serverUrl()"
+                (ngModelChange)="serverUrl.set($event)"
+                name="serverUrl"
+              />
+            </div>
+            <p class="field-hint">Leave blank to use Bitwarden.com</p>
+          </div>
+        }
+      }
+
+      <!-- Submit -->
+      <button type="submit" class="btn btn-primary btn-full" [disabled]="loading()">
+        @if (loading()) {
+          <i class="fas fa-spinner fa-spin"></i>
+          {{ mode() === 'unlock' ? 'Unlocking...' : 'Signing in...' }}
+        } @else {
+          <i class="{{ mode() === 'unlock' ? 'fas fa-unlock' : 'fas fa-right-to-bracket' }}"></i>
+          {{ mode() === 'unlock' ? 'Unlock' : 'Sign In' }}
+        }
+      </button>
+
+      <!-- Footer links -->
+      <div class="unlock-footer">
+        @if (mode() === 'unlock') {
+          <button type="button" class="link-btn" (click)="switchToLogin()">
+            <i class="fas fa-user-plus"></i> Sign in with a different account
+          </button>
+        }
+      </div>
+
+      } <!-- end @if mode !== two-factor -->
+    </form>
+  </div>
+</div>

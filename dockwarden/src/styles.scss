@@ -1,0 +1,392 @@
+@use 'sass:color';
+
+// ─── CSS Custom Properties ───────────────────────────────────────────────────
+:root {
+  --bg-primary: #0f1117;
+  --bg-secondary: #161b22;
+  --bg-tertiary: #1c2128;
+  --bg-card: #1c2128;
+  --bg-card-hover: #21262d;
+  --bg-selected: #1f3a5f;
+  --bg-sidebar: #0d1117;
+
+  --border: #30363d;
+  --border-light: #21262d;
+
+  --text-primary: #e6edf3;
+  --text-secondary: #8b949e;
+  --text-muted: #484f58;
+
+  --accent-blue: #2f81f7;
+  --accent-blue-hover: #388bfd;
+  --accent-green: #3fb950;
+  --accent-red: #f85149;
+  --accent-orange: #f0883e;
+  --accent-yellow: #e3b341;
+  --accent-purple: #a371f7;
+  --accent-teal: #39d353;
+
+  --status-expired-bg: rgba(248, 81, 73, 0.15);
+  --status-expired-border: rgba(248, 81, 73, 0.4);
+  --status-warning-bg: rgba(240, 136, 62, 0.15);
+  --status-warning-border: rgba(240, 136, 62, 0.4);
+
+  --sidebar-width: 220px;
+  --topbar-height: 48px;
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
+  --transition: 150ms ease;
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+
+// ─── Reset & Base ─────────────────────────────────────────────────────────────
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Inter', sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+// ─── Scrollbars ───────────────────────────────────────────────────────────────
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+  &:hover { background: var(--text-muted); }
+}
+
+// ─── Typography ───────────────────────────────────────────────────────────────
+h1 { font-size: 22px; font-weight: 600; color: var(--text-primary); }
+h2 { font-size: 18px; font-weight: 600; color: var(--text-primary); }
+h3 { font-size: 15px; font-weight: 600; color: var(--text-primary); }
+h4 { font-size: 13px; font-weight: 500; color: var(--text-secondary); }
+
+// ─── Buttons ─────────────────────────────────────────────────────────────────
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all var(--transition);
+  text-decoration: none;
+  white-space: nowrap;
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  &-primary {
+    background: var(--accent-blue);
+    color: #fff;
+    border-color: var(--accent-blue);
+    &:hover:not(:disabled) { background: var(--accent-blue-hover); }
+  }
+
+  &-secondary {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    border-color: var(--border);
+    &:hover:not(:disabled) { background: var(--bg-card-hover); border-color: var(--text-muted); }
+  }
+
+  &-danger {
+    background: transparent;
+    color: var(--accent-red);
+    border-color: var(--accent-red);
+    &:hover:not(:disabled) { background: rgba(248, 81, 73, 0.1); }
+  }
+
+  &-ghost {
+    background: transparent;
+    color: var(--text-secondary);
+    border-color: transparent;
+    &:hover:not(:disabled) { background: var(--bg-card-hover); color: var(--text-primary); }
+  }
+
+  &-icon {
+    padding: 6px;
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--text-secondary);
+    border: none;
+    cursor: pointer;
+    transition: all var(--transition);
+    &:hover { background: var(--bg-card-hover); color: var(--text-primary); }
+  }
+
+  &-sm {
+    padding: 4px 10px;
+    font-size: 12px;
+  }
+}
+
+// ─── Badges ──────────────────────────────────────────────────────────────────
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 100px;
+  font-size: 11px;
+  font-weight: 600;
+
+  &-expired { background: var(--status-expired-bg); color: var(--accent-red); border: 1px solid var(--status-expired-border); }
+  &-warning { background: var(--status-warning-bg); color: var(--accent-orange); border: 1px solid var(--status-warning-border); }
+  &-info { background: rgba(47, 129, 247, 0.15); color: var(--accent-blue); }
+  &-success { background: rgba(63, 185, 80, 0.15); color: var(--accent-green); }
+  &-count {
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    font-size: 11px;
+    padding: 1px 6px;
+  }
+}
+
+// ─── Tags/Chips ───────────────────────────────────────────────────────────────
+.tag-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 100px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity var(--transition);
+
+  &:hover { opacity: 0.8; }
+
+  &.servers { background: rgba(63, 185, 80, 0.2); color: #3fb950; }
+  &.important { background: rgba(248, 81, 73, 0.2); color: #f85149; }
+  &.shared { background: rgba(47, 129, 247, 0.2); color: #2f81f7; }
+  &.api-keys { background: rgba(227, 179, 65, 0.2); color: #e3b341; }
+  &.social { background: rgba(236, 72, 153, 0.2); color: #ec4899; }
+  &.personal { background: rgba(163, 113, 247, 0.2); color: #a371f7; }
+  &.work { background: rgba(6, 182, 212, 0.2); color: #06b6d4; }
+  &.finance { background: rgba(240, 136, 62, 0.2); color: #f0883e; }
+}
+
+// ─── Forms ───────────────────────────────────────────────────────────────────
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+
+  label {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+}
+
+.form-control {
+  padding: 8px 12px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: 14px;
+  outline: none;
+  transition: border-color var(--transition);
+
+  &::placeholder { color: var(--text-muted); }
+  &:focus { border-color: var(--accent-blue); }
+}
+
+.search-input {
+  @extend .form-control;
+  padding-left: 36px;
+  background: var(--bg-tertiary);
+}
+
+// ─── Cards ───────────────────────────────────────────────────────────────────
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  transition: border-color var(--transition);
+
+  &:hover { border-color: var(--text-muted); }
+
+  &-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+}
+
+// ─── Toggle / Switch ─────────────────────────────────────────────────────────
+.toggle {
+  position: relative;
+  width: 36px;
+  height: 20px;
+  cursor: pointer;
+
+  input[type="checkbox"] {
+    opacity: 0;
+    width: 0;
+    height: 0;
+    position: absolute;
+  }
+
+  .slider {
+    position: absolute;
+    inset: 0;
+    background: var(--bg-tertiary);
+    border-radius: 100px;
+    border: 1px solid var(--border);
+    transition: all var(--transition);
+
+    &::before {
+      content: '';
+      position: absolute;
+      width: 14px;
+      height: 14px;
+      background: var(--text-muted);
+      border-radius: 50%;
+      top: 2px;
+      left: 2px;
+      transition: all var(--transition);
+    }
+  }
+
+  input:checked + .slider {
+    background: var(--accent-blue);
+    border-color: var(--accent-blue);
+    &::before {
+      background: #fff;
+      transform: translateX(16px);
+    }
+  }
+}
+
+// ─── Progress Bars ────────────────────────────────────────────────────────────
+.progress-bar {
+  width: 100%;
+  height: 6px;
+  background: var(--bg-tertiary);
+  border-radius: 3px;
+  overflow: hidden;
+
+  .fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.6s ease;
+
+    &.green { background: var(--accent-green); }
+    &.blue { background: var(--accent-blue); }
+    &.purple { background: var(--accent-purple); }
+    &.orange { background: var(--accent-orange); }
+  }
+}
+
+// ─── Divider ─────────────────────────────────────────────────────────────────
+.divider {
+  height: 1px;
+  background: var(--border);
+  margin: 16px 0;
+}
+
+// ─── Page Layout ─────────────────────────────────────────────────────────────
+.page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 24px;
+
+  .page-title {
+    h1 { margin-bottom: 4px; }
+    p { color: var(--text-secondary); font-size: 13px; }
+  }
+}
+
+// ─── Overlay ─────────────────────────────────────────────────────────────────
+.overlay-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  min-width: 480px;
+  max-width: 640px;
+  box-shadow: var(--shadow-lg);
+
+  &-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+  }
+}
+
+// ─── Icon Placeholders ────────────────────────────────────────────────────────
+.icon-btn {
+  @extend .btn-icon;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+}
+
+// ─── Utility ─────────────────────────────────────────────────────────────────
+.flex { display: flex; }
+.flex-col { display: flex; flex-direction: column; }
+.items-center { align-items: center; }
+.justify-between { justify-content: space-between; }
+.gap-4 { gap: 4px; }
+.gap-8 { gap: 8px; }
+.gap-12 { gap: 12px; }
+.gap-16 { gap: 16px; }
+.text-sm { font-size: 12px; }
+.text-muted { color: var(--text-secondary); }
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+// ─── Router component host fix ───────────────────────────────────────────────
+// Angular custom-element hosts default to display:inline in Chromium.
+// Force every direct child of .main-content (the routed component host) to be
+// a full-width block so page layouts fill the entire content area.
+.main-content > * {
+  display: block;
+  width: 100%;
+}

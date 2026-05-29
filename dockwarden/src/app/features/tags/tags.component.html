@@ -1,0 +1,150 @@
+<div class="tags-page">
+  <!-- Page Header -->
+  <div class="page-header">
+    <div class="page-title">
+      <h1>Tag Manager</h1>
+      <p>Organize your vault with custom tags</p>
+    </div>
+    <button class="btn btn-primary" (click)="bulkOpen.set(!bulkOpen())">
+      <i class="fas fa-tags"></i> Bulk Tag Editor
+    </button>
+  </div>
+
+  <!-- Tags Grid -->
+  @if (!bulkOpen()) {
+    <div class="search-wrapper">
+      <i class="fas fa-magnifying-glass search-icon"></i>
+      <input class="search-input" placeholder="Search tags..." [ngModel]="searchQuery()" (ngModelChange)="searchQuery.set($event)" />
+    </div>
+
+    @if (filteredTags().length === 0) {
+      <div class="empty-state">
+        <i class="fas fa-tags"></i>
+        <p>No tags yet. Use the Bulk Tag Editor to add tags to your items.</p>
+      </div>
+    } @else {
+      <div class="tags-grid">
+        @for (tag of filteredTags(); track tag.name) {
+          <div class="tag-card" [class.active]="selectedTagName() === tag.name"
+               (click)="selectedTagName.set(selectedTagName() === tag.name ? null : tag.name)">
+            <div class="tag-card-header">
+              <div class="tag-dot" [style.background]="tag.color"></div>
+              <span class="tag-name">{{ tag.name }}</span>
+            </div>
+            <div class="tag-count">{{ tag.itemCount }} items</div>
+          </div>
+        }
+      </div>
+
+      <!-- Tag Items Preview -->
+      @if (selectedTagName()) {
+        <div class="tag-items-preview">
+          <div class="preview-header">
+            <h3>
+              <span class="tag-dot-sm" [style.background]="allTags()[0]?.color"></span>
+              Items tagged "{{ selectedTagName() }}"
+              <span class="preview-count">{{ tagItems().length }}</span>
+            </h3>
+          </div>
+          <div class="preview-list">
+            @for (item of tagItems(); track item.id) {
+              <div class="preview-item">
+                <i class="{{ getTypeIcon(item.type) }} preview-icon"></i>
+                <div class="preview-info">
+                  <span class="preview-name">{{ item.name }}</span>
+                  <span class="preview-user">{{ item.username ?? item.website ?? '' }}</span>
+                </div>
+              </div>
+            }
+          </div>
+        </div>
+      }
+    }
+  }
+
+  <!-- ── Bulk Tag Editor ─────────────────────────────────────────────────── -->
+  @if (bulkOpen()) {
+    <div class="bulk-editor">
+      <div class="bulk-header">
+        <div>
+          <h2><i class="fas fa-layer-group"></i> Bulk Tag Editor</h2>
+          <p>Select items and choose tags to add or remove across all of them at once.</p>
+        </div>
+        <button class="btn btn-secondary btn-sm" (click)="bulkOpen.set(false)">
+          <i class="fas fa-xmark"></i> Close
+        </button>
+      </div>
+
+      <!-- Tag operations -->
+      <div class="bulk-ops">
+        <div class="bulk-op-card">
+          <div class="bulk-op-label"><i class="fas fa-plus-circle"></i> Tags to ADD</div>
+          <div class="bulk-chips-row">
+            @for (tag of bulkTagsToAdd(); track tag) {
+              <span class="bulk-chip add">{{ tag }} <button (click)="removeBulkTagToAdd(tag)"><i class="fas fa-xmark"></i></button></span>
+            }
+            <input class="bulk-chip-input" placeholder="type + Enter..." [ngModel]="bulkNewTag()" (ngModelChange)="bulkNewTag.set($event)" (keydown)="addBulkTagOnEnter($event)" />
+          </div>
+          <button class="btn btn-secondary btn-sm" (click)="addBulkTagToAdd()">+ Add</button>
+        </div>
+        <div class="bulk-op-card">
+          <div class="bulk-op-label"><i class="fas fa-minus-circle"></i> Tags to REMOVE</div>
+          <div class="bulk-chips-row">
+            @for (tag of bulkTagsToRemove(); track tag) {
+              <span class="bulk-chip remove">{{ tag }} <button (click)="removeBulkTagToRemove(tag)"><i class="fas fa-xmark"></i></button></span>
+            }
+            <input class="bulk-chip-input" placeholder="type + Enter..." [ngModel]="bulkRemoveTag()" (ngModelChange)="bulkRemoveTag.set($event)" (keydown)="addBulkRemoveOnEnter($event)" />
+          </div>
+          <button class="btn btn-secondary btn-sm" (click)="addBulkTagToRemove()">+ Add</button>
+        </div>
+      </div>
+
+      <!-- Item selector -->
+      <div class="bulk-list-header">
+        <div class="bulk-search-wrap">
+          <i class="fas fa-magnifying-glass"></i>
+          <input class="bulk-search" placeholder="Search items..." [ngModel]="bulkSearch()" (ngModelChange)="bulkSearch.set($event)" />
+        </div>
+        <div class="bulk-selection-actions">
+          <span class="bulk-sel-count">{{ bulkSelectedCount() }} selected</span>
+          <button class="btn btn-secondary btn-xs" (click)="selectAllBulk()">Select All</button>
+          <button class="btn btn-secondary btn-xs" (click)="clearBulkSelection()">Clear</button>
+        </div>
+      </div>
+
+      <div class="bulk-items-list">
+        @for (item of bulkFilteredItems(); track item.id) {
+          <label class="bulk-item-row" [class.checked]="isBulkSelected(item.id)">
+            <input type="checkbox" [checked]="isBulkSelected(item.id)" (change)="toggleBulkItem(item.id)" />
+            <i class="{{ getTypeIcon(item.type) }} bulk-type-icon"></i>
+            <div class="bulk-item-info">
+              <span class="bulk-item-name">{{ item.name }}</span>
+              <span class="bulk-item-sub">{{ item.username ?? item.website ?? '' }}</span>
+            </div>
+            <div class="bulk-item-tags">
+              @for (tag of item.tags; track tag) {
+                <span class="bulk-tag-chip">{{ tag }}</span>
+              }
+            </div>
+          </label>
+        }
+        @if (bulkFilteredItems().length === 0) {
+          <div class="bulk-empty">No items match your search.</div>
+        }
+      </div>
+
+      <!-- Apply bar -->
+      <div class="bulk-apply-bar">
+        @if (bulkResult()) {
+          <span class="bulk-result">{{ bulkResult() }}</span>
+        }
+        <button class="btn btn-primary"
+                [disabled]="bulkSaving() || bulkSelectedCount() === 0 || (bulkTagsToAdd().length === 0 && bulkTagsToRemove().length === 0)"
+                (click)="applyBulkTags()">
+          @if (bulkSaving()) { <i class="fas fa-spinner fa-spin"></i> Applying... }
+          @else { <i class="fas fa-check"></i> Apply to {{ bulkSelectedCount() }} item{{ bulkSelectedCount() !== 1 ? 's' : '' }} }
+        </button>
+      </div>
+    </div>
+  }
+</div>

@@ -1,0 +1,193 @@
+.expiry-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 24px;
+  h1 { margin-bottom: 4px; }
+  p { color: var(--text-secondary); font-size: 13px; }
+  .header-actions { display: flex; gap: 8px; }
+}
+
+// ─── Summary ─────────────────────────────────────────────────────────────────
+.expiry-summary {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.summary-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+
+  &.expired-card {
+    border-color: var(--status-expired-border);
+    background: var(--status-expired-bg);
+    .summary-value { color: var(--accent-red); }
+    .summary-icon { color: var(--accent-red); }
+  }
+  &.week-card {
+    border-color: var(--status-warning-border);
+    background: var(--status-warning-bg);
+    .summary-value { color: var(--accent-orange); }
+    .summary-icon { color: var(--accent-orange); }
+  }
+  &.month-card {
+    .summary-value { color: var(--accent-yellow); }
+    .summary-icon { color: var(--accent-yellow); }
+  }
+
+  .summary-label { font-size: 13px; color: var(--text-secondary); margin-bottom: 8px; }
+  .summary-value { font-size: 40px; font-weight: 700; line-height: 1; }
+  .summary-icon {
+    position: absolute;
+    top: 16px;
+    right: 20px;
+    font-size: 28px;
+    opacity: 0.5;
+  }
+}
+
+// ─── Tabs ─────────────────────────────────────────────────────────────────────
+.tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 12px;
+}
+
+.tab {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 13px;
+  padding: 8px 14px;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: all var(--transition);
+
+  &:hover { color: var(--text-primary); }
+  &.active {
+    color: var(--accent-blue);
+    border-bottom-color: var(--accent-blue);
+  }
+}
+
+// ─── Two-column content area ─────────────────────────────────────────────────
+.expiry-content {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 16px;
+  align-items: start;
+}
+
+// ─── Items ────────────────────────────────────────────────────────────────────
+.expiry-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 24px;
+}
+
+.expiry-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  transition: border-color var(--transition);
+
+  &:hover { border-color: var(--text-muted); }
+
+  &.is-expired { border-left: 3px solid var(--accent-red); }
+
+  &.is-snoozed { opacity: 0.6; }
+}
+
+.item-avatar {
+  width: 36px;
+  height: 36px;
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+}
+
+.item-info {
+  flex: 1;
+  .item-name-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+  }
+  .item-name { font-size: 14px; font-weight: 500; }
+  .item-meta { font-size: 12px; color: var(--text-secondary); }
+}
+
+.item-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  .btn-icon {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 6px;
+    font-size: 16px;
+    color: var(--text-muted);
+    border-radius: var(--radius-md);
+    &:hover { background: var(--bg-card-hover); color: var(--text-primary); }
+  }
+}
+
+.empty-state {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 40px;
+  justify-content: center;
+  color: var(--text-muted);
+  .empty-icon { font-size: 32px; }
+}
+
+// ─── Reminder Rules ───────────────────────────────────────────────────────────
+.reminder-rules {
+  h3 { margin-bottom: 4px; }
+  .rules-desc { font-size: 13px; color: var(--text-secondary); margin-bottom: 16px; }
+}
+
+.rules-list { display: flex; flex-direction: column; gap: 4px; }
+
+.rule-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  transition: background var(--transition);
+
+  &:hover { background: var(--bg-tertiary); }
+
+  .rule-icon { font-size: 14px; }
+  .rule-label { flex: 1; font-size: 13px; }
+}

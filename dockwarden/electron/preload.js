@@ -1,0 +1,56 @@
+const { contextBridge, ipcRenderer } = require('electron');
+
+contextBridge.exposeInMainWorld('electronAPI', {
+  vault: {
+    getItems: () => ipcRenderer.invoke('vault:get-items'),
+    getCachedItems: () => ipcRenderer.invoke('vault:get-cached-items'),
+    getFolders: () => ipcRenderer.invoke('vault:get-folders'),
+    sync: () => ipcRenderer.invoke('vault:sync'),
+    editItem: (id, patch) => ipcRenderer.invoke('vault:edit-item', { id, patch }),
+    createItem: (item) => ipcRenderer.invoke('vault:create-item', { item }),
+    status: () => ipcRenderer.invoke('vault:status'),
+    login: (email, password, serverUrl) => ipcRenderer.invoke('vault:login', { email, password, serverUrl }),
+    login2fa: (code, method) => ipcRenderer.invoke('vault:login-2fa', { code, method }),
+    unlock: (password) => ipcRenderer.invoke('vault:unlock', { password }),
+    lock: () => ipcRenderer.invoke('vault:lock'),
+    logout: () => ipcRenderer.invoke('vault:logout'),
+  },
+  autotype: {
+    send: (username, password, pressEnter) => ipcRenderer.invoke('autotype:send', { username, password, pressEnter }),
+  },
+  launcher: {
+    close: () => ipcRenderer.send('launcher:close'),
+    navigateToItem: (itemId) => ipcRenderer.send('launcher:navigate-to-item', itemId),
+    openSearch: () => ipcRenderer.invoke('launcher:open-search'),
+    openAutotype: () => ipcRenderer.invoke('launcher:open-autotype'),
+  },
+  bw: {
+    getConfig: () => ipcRenderer.invoke('bw:get-config'),
+    setCliPath: (cliPath) => ipcRenderer.invoke('bw:set-cli-path', { cliPath }),
+    checkCli: () => ipcRenderer.invoke('bw:check-cli'),
+  },
+  backup: {
+    runNow: () => ipcRenderer.invoke('backup:run-now'),
+    getHistory: () => ipcRenderer.invoke('backup:get-history'),
+  },
+  app: {
+    getStore: (key) => ipcRenderer.invoke('app:get-store', key),
+    setStore: (key, value) => ipcRenderer.invoke('app:set-store', { key, value }),
+    notify: (title, body) => ipcRenderer.invoke('app:notify', { title, body }),
+    openExternal: (url) => ipcRenderer.invoke('app:open-external', url),
+  },
+  on: (channel, callback) => {
+    const validChannels = [
+      'vault:sync-requested',
+      'vault:lock-requested',
+      'navigate',
+      'navigate-to-item',
+    ];
+    if (validChannels.includes(channel)) {
+      ipcRenderer.on(channel, (_, ...args) => callback(...args));
+    }
+  },
+  removeListener: (channel, callback) => {
+    ipcRenderer.removeListener(channel, callback);
+  },
+});

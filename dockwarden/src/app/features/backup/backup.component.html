@@ -1,0 +1,138 @@
+<div class="backup-page">
+  <div class="page-header">
+    <div class="page-title">
+      <h1>Encrypted Backup</h1>
+      <p>Automated vault backups to multiple destinations</p>
+    </div>
+    <button class="btn btn-primary" (click)="runBackup()" [disabled]="running()">
+      <i class="{{ running() ? 'fas fa-spinner fa-spin' : 'fas fa-play' }}"></i>
+      {{ running() ? 'Running...' : 'Backup Now' }}
+    </button>
+  </div>
+
+  <!-- Status Bar -->
+  <div class="status-bar card">
+    <div class="status-item">
+      <div class="status-label">Status</div>
+      <div class="status-value"><span class="dot-active">●</span> Active</div>
+    </div>
+    <div class="status-item">
+      <div class="status-label">Last Backup</div>
+      <div class="status-value">{{ formatTimestamp(status.lastBackup!) }}</div>
+    </div>
+    <div class="status-item">
+      <div class="status-label">Next Scheduled</div>
+      <div class="status-value">{{ formatTimestamp(status.nextScheduled) }}</div>
+    </div>
+    <div class="status-item">
+      <div class="status-label">Total Backups</div>
+      <div class="status-value">{{ status.totalBackups }}</div>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab" [class.active]="activeTab() === 'destinations'" (click)="activeTab.set('destinations')">Destinations</button>
+    <button class="tab" [class.active]="activeTab() === 'schedule'" (click)="activeTab.set('schedule')">Schedule</button>
+    <button class="tab" [class.active]="activeTab() === 'history'" (click)="activeTab.set('history')">History</button>
+  </div>
+
+  <!-- Destinations Tab -->
+  @if (activeTab() === 'destinations') {
+    <div class="tab-header">
+      <p class="tab-desc">Configure where your encrypted backups are stored</p>
+      <button class="btn btn-secondary btn-sm">+ Add Destination</button>
+    </div>
+    <div class="destinations-list">
+      @for (dest of destinations(); track dest.id) {
+        <div class="destination-row">
+          <div class="dest-icon"><i class="{{ getDestIcon(dest.type) }}"></i></div>
+          <div class="dest-info">
+            <div class="dest-name">
+              {{ dest.label }}
+              <span class="dest-type-badge">{{ dest.type.toUpperCase() }}</span>
+            </div>
+            @if (dest.lastBackup) {
+              <div class="dest-meta">Last backup: {{ formatTimeAgo(dest.lastBackup) }}</div>
+            } @else {
+              <div class="dest-meta not-configured">Not configured</div>
+            }
+          </div>
+          <div class="dest-actions">
+            <label class="toggle">
+              <input type="checkbox" [checked]="dest.enabled" (change)="toggleDestination(dest.id)" />
+              <span class="slider"></span>
+            </label>
+            <button class="btn-icon"><i class="fas fa-ellipsis-h"></i></button>
+          </div>
+        </div>
+      }
+    </div>
+  }
+
+  <!-- Schedule Tab -->
+  @if (activeTab() === 'schedule') {
+    <div class="schedule-section">
+      <div class="backup-body">
+        <div class="card">
+          <h3 style="margin-bottom: 16px">Backup Schedule</h3>
+
+          <div class="form-group" style="margin-bottom: 16px">
+            <label>Frequency</label>
+            <select class="form-control" [ngModel]="selectedSchedule()" (ngModelChange)="selectedSchedule.set($event)">
+              @for (opt of scheduleOptions; track opt) {
+                <option [value]="opt">{{ opt }}</option>
+              }
+            </select>
+          </div>
+
+          <button class="btn btn-primary">Save Settings</button>
+        </div>
+
+        <div class="card">
+          <h3 style="margin-bottom: 12px">Retention Policy</h3>
+          <div class="form-group" style="margin-bottom: 16px">
+            <label>Keep last N backups</label>
+            <input type="number" class="form-control" [ngModel]="retentionCount()" (ngModelChange)="retentionCount.set($event)" min="1" max="100" style="max-width: 160px" />
+          </div>
+          <p style="font-size:12px;color:var(--text-secondary)">Older backups beyond this limit are automatically deleted to save storage space.</p>
+        </div>
+      </div>
+    </div>
+  }
+
+  <!-- History Tab -->
+  @if (activeTab() === 'history') {
+    <div class="history-section">
+      @if (history().length === 0) {
+        <div class="empty-history">No backup history yet</div>
+      } @else {
+        <table class="history-table">
+          <thead>
+            <tr>
+              <th>Timestamp</th>
+              <th>Destination</th>
+              <th>Size</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (job of history(); track job.id) {
+              <tr>
+                <td class="ts-cell">{{ formatTimestamp(job.timestamp) }}</td>
+                <td>{{ job.destination }}</td>
+                <td class="size-cell">{{ job.size }}</td>
+                <td>
+                  <span class="badge" [class]="job.status === 'success' ? 'badge-success' : 'badge-expired'">
+                    <i class="{{ job.status === 'success' ? 'fas fa-check' : 'fas fa-xmark' }}"></i>
+                    {{ job.status === 'success' ? 'Success' : 'Failed' }}
+                  </span>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      }
+    </div>
+  }
+</div>

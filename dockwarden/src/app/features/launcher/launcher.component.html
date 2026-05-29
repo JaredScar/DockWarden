@@ -1,0 +1,52 @@
+<div class="launcher">
+  <div class="launcher-search">
+    <i class="fas fa-magnifying-glass search-icon"></i>
+    <input
+      class="search-input"
+      placeholder="Search your vault…"
+      autofocus
+      [ngModel]="query()"
+      (ngModelChange)="onQueryChange($event)"
+    />
+    @if (query()) {
+      <button class="clear-btn" (click)="onQueryChange('')"><i class="fas fa-xmark"></i></button>
+    }
+  </div>
+
+  <div class="launcher-results">
+    @if (loading()) {
+      <div class="launcher-empty"><i class="fas fa-spinner fa-spin"></i> Loading…</div>
+    } @else if (results().length === 0) {
+      <div class="launcher-empty">
+        @if (query()) { No results for "<strong>{{ query() }}</strong>" }
+        @else { No items in vault }
+      </div>
+    } @else {
+      @for (item of results(); track item.id; let i = $index) {
+        <button
+          class="result-row"
+          [class.active]="i === selectedIdx()"
+          (click)="select(item)"
+          (mouseenter)="selectedIdx.set(i)"
+        >
+          <span class="avatar" [style.background]="getColor(item.name)">{{ getInitials(item.name) }}</span>
+          <span class="details">
+            <span class="item-name">{{ item.name }}</span>
+            @if (item.username) {
+              <span class="item-sub">{{ item.username }}</span>
+            } @else if (item.website) {
+              <span class="item-sub">{{ item.website }}</span>
+            }
+          </span>
+          <i class="{{ getIcon(item.type) }} type-icon"></i>
+        </button>
+      }
+    }
+  </div>
+
+  <div class="launcher-footer">
+    <span><kbd>↑↓</kbd> Navigate</span>
+    <span><kbd>Enter</kbd> Open in vault</span>
+    <span><kbd>Esc</kbd> Close</span>
+  </div>
+</div>

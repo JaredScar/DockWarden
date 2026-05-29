@@ -1,0 +1,120 @@
+<div class="smart-views-page">
+  <div class="page-header">
+    <div class="page-title">
+      <h1>Smart Views</h1>
+      <p>Create saved filter combinations</p>
+    </div>
+    <button class="btn btn-primary" (click)="showBuilder.set(true)">+ New Smart View</button>
+  </div>
+
+  <!-- Views List -->
+  <div class="views-list">
+    @for (view of views(); track view.id) {
+      <div class="view-row">
+        <div class="view-drag-handle">⠿</div>
+        <div class="view-info">
+          <div class="view-name">{{ view.name }}</div>
+          <div class="view-meta">
+            {{ view.conditions.length }} condition{{ view.conditions.length !== 1 ? 's' : '' }} ({{ view.operator }})
+            · {{ view.itemCount }} items
+          </div>
+        </div>
+        <div class="view-actions">
+          <button
+            class="btn btn-secondary btn-sm view-run"
+            (click)="runView(view)"
+            [class.running]="runningView() === view.id"
+          >
+            ▶ Run
+          </button>
+          <span class="view-count-badge">{{ viewResults()?.viewId === view.id ? viewResults()!.items.length : view.itemCount }}</span>
+          <button class="btn-icon pin-btn" [class.pinned]="view.pinned" (click)="togglePin(view.id)" [title]="view.pinned ? 'Unpin from sidebar' : 'Pin to sidebar'">
+            <i class="fas fa-thumbtack" [style.opacity]="view.pinned ? '1' : '0.4'"></i>
+          </button>
+          <button class="btn-icon" (click)="deleteView(view.id)" title="Delete">✕</button>
+        </div>
+      </div>
+
+      <!-- Inline Results -->
+      @if (viewResults()?.viewId === view.id) {
+        <div class="view-results">
+          <div class="results-header">Results: {{ viewResults()!.items.length }} items</div>
+          <div class="results-list">
+            @for (item of viewResults()!.items.slice(0, 8); track item.id) {
+              <div class="result-item">
+                <span class="result-icon">🔑</span>
+                <span class="result-name">{{ item.name }}</span>
+                <span class="result-user">{{ item.username }}</span>
+              </div>
+            }
+            @if (viewResults()!.items.length > 8) {
+              <div class="result-more">+{{ viewResults()!.items.length - 8 }} more items</div>
+            }
+          </div>
+        </div>
+      }
+    }
+  </div>
+
+  @if (views().length === 0) {
+    <div class="empty-state">
+      <div class="empty-icon">◈</div>
+      <h3>No smart views yet</h3>
+      <p>Create your first smart view to filter your vault with custom conditions</p>
+      <button class="btn btn-primary" (click)="showBuilder.set(true)">Create Smart View</button>
+    </div>
+  }
+
+  <!-- Builder Modal -->
+  @if (showBuilder()) {
+    <div class="overlay-backdrop" (click)="showBuilder.set(false)">
+      <div class="modal builder-modal" (click)="$event.stopPropagation()">
+        <div class="modal-header">
+          <h3>New Smart View</h3>
+          <button class="btn-icon" (click)="showBuilder.set(false)">✕</button>
+        </div>
+
+        <div class="form-group" style="margin-bottom: 16px">
+          <label>View Name</label>
+          <input class="form-control" placeholder="e.g. Work Logins, Expiring This Month" [ngModel]="newViewName()" (ngModelChange)="newViewName.set($event)" />
+        </div>
+
+        <div class="operator-row">
+          <span class="operator-label">Match</span>
+          <select class="form-control operator-select" [ngModel]="newViewOperator()" (ngModelChange)="newViewOperator.set($event)">
+            <option value="AND">ALL conditions (AND)</option>
+            <option value="OR">ANY condition (OR)</option>
+          </select>
+        </div>
+
+        <div class="conditions-list">
+          @for (condition of newViewConditions(); track condition.id) {
+            <div class="condition-row">
+              <select class="form-control condition-field" [ngModel]="condition.field" (ngModelChange)="condition.field = $event">
+                @for (opt of fieldOptions; track opt.value) {
+                  <option [value]="opt.value">{{ opt.label }}</option>
+                }
+              </select>
+              <select class="form-control condition-op" [ngModel]="condition.operator" (ngModelChange)="condition.operator = $event">
+                @for (opt of operatorOptions[condition.field]; track opt.value) {
+                  <option [value]="opt.value">{{ opt.label }}</option>
+                }
+              </select>
+              @if (condition.field !== 'totp') {
+                <input class="form-control condition-value" placeholder="Value" [ngModel]="condition.value" (ngModelChange)="condition.value = $event" />
+              }
+              <button class="btn-icon remove-btn" (click)="removeCondition(condition.id)">✕</button>
+            </div>
+          }
+        </div>
+
+        <button class="btn btn-secondary btn-sm add-condition-btn" (click)="addCondition()">+ Add Condition</button>
+
+        <div class="modal-footer">
+          <button class="btn btn-secondary" (click)="showBuilder.set(false)">Cancel</button>
+          <button class="btn btn-primary" (click)="saveView()">Save View</button>
+        </div>
+      </div>
+    </div>
+  }
+</div>

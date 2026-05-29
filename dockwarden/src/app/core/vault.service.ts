@@ -1,0 +1,368 @@
+import { Injectable, signal, computed } from '@angular/core';
+import {
+  VaultItem, Tag, BackupJob,
+  SyncResult, VaultStats, RecentActivity, ExpiryStatus
+} from '../shared/models';
+
+export type AuthStatus = 'unauthenticated' | 'locked' | 'unlocked';
+
+export interface Folder {
+  id: string;
+  name: string;
+}
+
+declare global {
+  interface Window {
+    electronAPI?: {
+      vault: {
+        getItems: () => Promise<VaultItem[]>;
+        getCachedItems: () => Promise<VaultItem[]>;
+        getFolders: () => Promise<Folder[]>;
+        sync: () => Promise<SyncResult>;
+        editItem: (id: string, patch: Partial<VaultItem> & { folderId?: string | null; expiresAt?: string | null; username?: string; password?: string; website?: string }) => Promise<{ success: boolean; error?: string }>;
+        createItem: (item: object) => Promise<{ success: boolean; item?: VaultItem; error?: string }>;
+        status: () => Promise<{ success: boolean; status: { status: string } }>;
+        login: (email: string, password: string, serverUrl?: string) => Promise<{ success: boolean; requiresTwoFactor?: boolean; error?: string }>;
+        login2fa: (code: string, method?: number) => Promise<{ success: boolean; error?: string }>;
+        unlock: (password: string) => Promise<{ success: boolean; error?: string }>;
+        lock: () => Promise<{ success: boolean }>;
+        logout: () => Promise<{ success: boolean }>;
+      };
+      autotype: {
+        send: (username: string, password: string, pressEnter: boolean) => Promise<{ success: boolean; error?: string }>;
+      };
+      launcher: {
+        close: () => void;
+        navigateToItem: (itemId: string) => void;
+        openSearch: () => Promise<void>;
+        openAutotype: () => Promise<void>;
+      };
+      bw: {
+        getConfig: () => Promise<{ bwEmail: string; bwServerUrl: string; bwCliPath: string; isSessionActive: boolean }>;
+        setCliPath: (cliPath: string) => Promise<boolean>;
+        checkCli: () => Promise<{ success: boolean; version: string | null }>;
+      };
+      backup: {
+        runNow: () => Promise<{ success: boolean; timestamp: string; size: string }>;
+        getHistory: () => Promise<BackupJob[]>;
+      };
+      app: {
+        getStore: (key: string) => Promise<unknown>;
+        setStore: (key: string, value: unknown) => Promise<boolean>;
+        notify: (title: string, body: string) => Promise<boolean>;
+        openExternal: (url: string) => Promise<void>;
+      };
+      on: (channel: string, callback: (...args: unknown[]) => void) => void;
+      removeListener: (channel: string, callback: (...args: unknown[]) => void) => void;
+    };
+  }
+}
+
+@Injectable({ providedIn: 'root' })
+export class VaultService {
+  private readonly _items = signal<VaultItem[]>([]);
+  private readonly _folders = signal<Folder[]>([]);
+  private readonly _syncing = signal(false);
+  private readonly _lastSynced = signal<Date | null>(null);
+  private readonly _searchQuery = signal('');
+  private readonly _authStatus = signal<AuthStatus>('locked');
+
+  readonly items = this._items.asReadonly();
+  readonly folders = this._folders.asReadonly();
+  readonly syncing = this._syncing.asReadonly();
+  readonly lastSynced = this._lastSynced.asReadonly();
+  readonly searchQuery = this._searchQuery.asReadonly();
+  readonly authStatus = this._authStatus.asReadonly();
+  readonly isUnlocked = computed(() => this._authStatus() === 'unlocked');
+
+  readonly filteredItems = computed(() => {
+    const q = this._searchQuery().toLowerCase();
+    if (!q) return this._items();
+    return this._items().filter(item =>
+      item.name.toLowerCase().includes(q) ||
+      (item.username?.toLowerCase().includes(q)) ||
+      (item.website?.toLowerCase().includes(q))
+    );
+  });
+
+  readonly stats = computed<VaultStats>(() => {
+    const items = this._items();
+    const now = new Date();
+    const in30Days = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+    const logins = items.filter(i => i.type === 'login');
+    const withStrong = logins.filter(i => (i.passwordStrength ?? 0) >= 80).length;
+    const withTotp = logins.filter(i => i.totp).length;
+    const expiring = items.filter(i => {
+      if (!i.expiresAt) return false;
+      const d = new Date(i.expiresAt);
+      return d <= in30Days;
+    }).length;
+
+    const tags = this.allTags();
+
+    return {
+      totalItems: items.length,
+      expiringSoon: expiring,
+      tagCount: tags.length,
+      lastBackup: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+      securityScore: logins.length > 0
+        ? Math.round((withStrong / logins.length) * 100 * 0.5 + (withTotp / logins.length) * 100 * 0.5)
+        : 0,
+      strongPasswords: logins.length > 0 ? Math.round((withStrong / logins.length) * 100) : 0,
+      twoFAEnabled: logins.length > 0 ? Math.round((withTotp / logins.length) * 100) : 0,
+      noDuplicates: 95,
+      recentlyUpdated: 78,
+    };
+  });
+
+  readonly allTags = computed<Tag[]>(() => {
+    const items = this._items();
+    const tagMap = new Map<string, { count: number; color: string }>();
+    const colors = ['#ef4444', '#3b82f6', '#f59e0b', '#ec4899', '#22c55e', '#a855f7', '#f97316', '#06b6d4'];
+
+    items.forEach(item => {
+      item.tags.forEach(tag => {
+        if (!tagMap.has(tag)) {
+          tagMap.set(tag, { count: 0, color: colors[tagMap.size % colors.length] });
+        }
+        tagMap.get(tag)!.count++;
+      });
+    });
+
+    return Array.from(tagMap.entries()).map(([name, { count, color }]) => ({
+      name, color, itemCount: count
+    }));
+  });
+
+  readonly expiringItems = computed(() => {
+    const now = new Date();
+    return this._items()
+      .filter(i => i.expiresAt)
+      .map(item => ({ item, status: this.getExpiryStatus(item) }))
+      .filter(({ status }) => status !== 'ok')
+      .sort((a, b) => new Date(a.item.expiresAt!).getTime() - new Date(b.item.expiresAt!).getTime());
+  });
+
+  readonly recentActivity = computed<RecentActivity[]>(() => []);
+
+  getExpiryStatus(item: VaultItem): ExpiryStatus {
+    if (!item.expiresAt) return 'ok';
+    const now = new Date();
+    const exp = new Date(item.expiresAt);
+    if (exp < now) return 'expired';
+    const diff = exp.getTime() - now.getTime();
+    const days = diff / (1000 * 60 * 60 * 24);
+    if (days <= 7) return 'this-week';
+    if (days <= 30) return 'this-month';
+    return 'ok';
+  }
+
+  getDaysUntilExpiry(item: VaultItem): number | null {
+    if (!item.expiresAt) return null;
+    const diff = new Date(item.expiresAt).getTime() - Date.now();
+    return Math.ceil(diff / (1000 * 60 * 60 * 24));
+  }
+
+  async checkAuthStatus(): Promise<AuthStatus> {
+    if (!window.electronAPI) {
+      this._authStatus.set('unlocked');
+      return 'unlocked';
+    }
+    try {
+      const result = await window.electronAPI.vault.status();
+      const status = result.status?.status ?? 'unauthenticated';
+      if (status === 'unlocked') {
+        this._authStatus.set('unlocked');
+        return 'unlocked';
+      } else if (status === 'locked') {
+        this._authStatus.set('locked');
+        return 'locked';
+      } else {
+        this._authStatus.set('unauthenticated');
+        return 'unauthenticated';
+      }
+    } catch {
+      this._authStatus.set('unauthenticated');
+      return 'unauthenticated';
+    }
+  }
+
+  async login(email: string, password: string, serverUrl?: string): Promise<{ success: boolean; requiresTwoFactor?: boolean; error?: string }> {
+    if (!window.electronAPI) return { success: false, error: 'Not running in Electron' };
+    const result = await window.electronAPI.vault.login(email, password, serverUrl);
+    if (result.success) {
+      this._authStatus.set('unlocked');
+      this.loadItems().catch(() => {});
+      this.loadFolders().catch(() => {});
+    }
+    return result;
+  }
+
+  async login2fa(code: string, method = 0): Promise<{ success: boolean; error?: string }> {
+    if (!window.electronAPI) return { success: false, error: 'Not running in Electron' };
+    const result = await window.electronAPI.vault.login2fa(code, method);
+    if (result.success) {
+      this._authStatus.set('unlocked');
+      this.loadItems().catch(() => {});
+      this.loadFolders().catch(() => {});
+    }
+    return result;
+  }
+
+  async unlock(password: string): Promise<{ success: boolean; error?: string }> {
+    if (!window.electronAPI) return { success: false, error: 'Not running in Electron' };
+    const result = await window.electronAPI.vault.unlock(password);
+    if (result.success) {
+      this._authStatus.set('unlocked');
+      this.loadItems().catch(() => {});
+      this.loadFolders().catch(() => {});
+    }
+    return result;
+  }
+
+  async lock(): Promise<void> {
+    if (window.electronAPI) {
+      await window.electronAPI.vault.lock();
+    }
+    this._authStatus.set('locked');
+    this._items.set([]);
+  }
+
+  async logout(): Promise<void> {
+    if (window.electronAPI) {
+      await window.electronAPI.vault.logout();
+    }
+    this._authStatus.set('unauthenticated');
+    this._items.set([]);
+  }
+
+  async loadItems(): Promise<void> {
+    if (window.electronAPI) {
+      const items = await window.electronAPI.vault.getItems();
+      this._items.set(items);
+    }
+  }
+
+  async loadFolders(): Promise<void> {
+    if (window.electronAPI) {
+      const folders = await window.electronAPI.vault.getFolders();
+      this._folders.set(folders);
+    }
+  }
+
+  /** Persist changes to a vault item (credentials + metadata). */
+  async updateItemMeta(id: string, patch: {
+    name?: string; username?: string; password?: string; website?: string; notes?: string;
+    tags?: string[]; expiresAt?: string | null; folderId?: string | null;
+  }): Promise<{ success: boolean; error?: string }> {
+    if (!window.electronAPI) return { success: false, error: 'Not running in Electron' };
+    const result = await window.electronAPI.vault.editItem(id, {
+      name: patch.name,
+      username: patch.username,
+      password: patch.password,
+      website: patch.website,
+      notes: patch.notes,
+      tags: patch.tags,
+      expiresAt: patch.expiresAt ?? null,
+      folderId: patch.folderId ?? null,
+    });
+    if (result.success) {
+      this._items.update(items => items.map(item => {
+        if (item.id !== id) return item;
+        return {
+          ...item,
+          ...(patch.name !== undefined ? { name: patch.name! } : {}),
+          ...(patch.username !== undefined ? { username: patch.username ?? null } : {}),
+          ...(patch.password !== undefined ? { password: patch.password ?? null } : {}),
+          ...(patch.website !== undefined ? { website: patch.website ?? null } : {}),
+          ...(patch.notes !== undefined ? { notes: patch.notes } : {}),
+          ...(patch.tags !== undefined ? { tags: patch.tags! } : {}),
+          ...(patch.expiresAt !== undefined ? { expiresAt: patch.expiresAt } : {}),
+          ...(patch.folderId !== undefined ? { folderId: patch.folderId } : {}),
+        };
+      }));
+    }
+    return result;
+  }
+
+  async createItem(data: {
+    type: 'login' | 'note';
+    name: string;
+    username?: string;
+    password?: string;
+    website?: string;
+    notes?: string;
+    folderId?: string | null;
+  }): Promise<{ success: boolean; error?: string }> {
+    if (!window.electronAPI) return { success: false, error: 'Not running in Electron' };
+
+    const bwItem: Record<string, unknown> = {
+      organizationId: null,
+      collectionIds: [],
+      folderId: data.folderId || null,
+      type: data.type === 'login' ? 1 : 2,
+      name: data.name,
+      notes: data.notes || null,
+      favorite: false,
+      fields: [],
+      reprompt: 0,
+    };
+
+    if (data.type === 'login') {
+      bwItem['login'] = {
+        uris: data.website ? [{ match: null, uri: data.website }] : [],
+        username: data.username || null,
+        password: data.password || null,
+        totp: null,
+      };
+      bwItem['secureNote'] = null;
+      bwItem['card'] = null;
+      bwItem['identity'] = null;
+    } else {
+      bwItem['login'] = null;
+      bwItem['secureNote'] = { type: 0 };
+      bwItem['card'] = null;
+      bwItem['identity'] = null;
+    }
+
+    const result = await window.electronAPI.vault.createItem(bwItem);
+    if (result.success && result.item) {
+      this._items.update(items => [result.item!, ...items]);
+    }
+    return result;
+  }
+
+  async sync(): Promise<void> {
+    this._syncing.set(true);
+    try {
+      if (window.electronAPI) {
+        await window.electronAPI.vault.sync();
+        await this.loadItems();
+      }
+      this._lastSynced.set(new Date());
+    } finally {
+      this._syncing.set(false);
+    }
+  }
+
+  updateItem(id: string, patch: Partial<VaultItem>): void {
+    this._items.update(items =>
+      items.map(item => item.id === id ? { ...item, ...patch } : item)
+    );
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    window.electronAPI?.vault.editItem(id, patch as any);
+  }
+
+  setSearch(query: string): void {
+    this._searchQuery.set(query);
+  }
+
+  getItemsByTag(tag: string): VaultItem[] {
+    return this._items().filter(i => i.tags.includes(tag));
+  }
+
+  getItemsByFolder(folder: string): VaultItem[] {
+    return this._items().filter(i => i.folderId === folder);
+  }
+}
