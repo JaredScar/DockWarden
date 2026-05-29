@@ -27,6 +27,7 @@
     "better-sqlite3": "^12.10.0",
     "electron": "^42.3.0",
     "electron-store": "^11.0.2",
+    "electron-updater": "^6.8.3",
     "fuse.js": "^7.3.0",
     "node-cron": "^4.2.1",
     "rxjs": "~7.8.0",
@@ -57,22 +58,34 @@
       "electron/**/*",
       "dist/dockwarden/browser/**/*"
     ],
+    "publish": {
+      "provider": "github",
+      "owner": "JaredScar",
+      "repo": "DockWarden"
+    },
     "mac": {
       "category": "public.app-category.productivity",
       "target": [
-        "dmg",
-        "zip"
+        { "target": "dmg", "arch": ["x64", "arm64"] },
+        { "target": "zip", "arch": ["x64", "arm64"] }
       ]
     },
     "win": {
       "target": [
-        "nsis"
+        { "target": "nsis", "arch": ["x64"] }
       ]
     },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": false,
+      "deleteAppDataOnUninstall": false
+    },
     "linux": {
+      "category": "Utility",
       "target": [
-        "AppImage",
-        "deb"
+        { "target": "AppImage", "arch": ["x64"] },
+        { "target": "deb", "arch": ["x64"] }
       ]
     }
   }

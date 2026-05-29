@@ -1,0 +1,86 @@
+name: Build & Release
+
+# Triggers on any tag matching v1.2.3 — push a tag to create a release:
+#   git tag v1.0.1 && git push origin v1.0.1
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+# GITHUB_TOKEN needs write access to create the release and upload assets
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build — ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows
+            os: windows-latest
+            build_args: --win
+          - name: macOS
+            os: macos-latest
+            build_args: --mac
+          - name: Linux
+            os: ubuntu-latest
+            build_args: --linux
+
+    steps:
+      # ── Checkout ─────────────────────────────────────────────────────────────
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ── Node.js ──────────────────────────────────────────────────────────────
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: dockwarden/package-lock.json
+
+      # ── Linux system deps (needed by Electron / electron-builder) ────────────
+      - name: Install Linux build dependencies
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y \
+            libnss3-dev libatk1.0-dev libatk-bridge2.0-dev \
+            libgdk-pixbuf2.0-dev libgtk-3-dev libxss-dev \
+            libgbm-dev libasound2-dev rpm fakeroot
+
+      # ── App dependencies ─────────────────────────────────────────────────────
+      - name: Install dependencies
+        run: npm ci
+        working-directory: dockwarden
+
+      # ── Angular production build ─────────────────────────────────────────────
+      - name: Build Angular
+        run: npm run build:prod
+        working-directory: dockwarden
+
+      # ── Electron packager + publish to GitHub Release ────────────────────────
+      # electron-builder reads GH_TOKEN to create/update the release and upload
+      # the installers as release assets automatically.
+      - name: Build & publish Electron app
+        run: npx electron-builder ${{ matrix.build_args }} --publish always
+        working-directory: dockwarden
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # ── macOS code signing (optional) ─────────────────────────────────────
+          # To enable signing, add these secrets in your repo settings:
+          #   APPLE_ID            — your Apple ID email
+          #   APPLE_APP_PASSWORD  — app-specific password from appleid.apple.com
+          #   APPLE_TEAM_ID       — your 10-character Team ID
+          #   CSC_LINK            — base64-encoded .p12 certificate
+          #   CSC_KEY_PASSWORD    — certificate passphrase
+          #
+          # Uncomment the lines below once the secrets are configured:
+          # APPLE_ID: ${{ secrets.APPLE_ID }}
+          # APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          # APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          # CSC_LINK: ${{ secrets.CSC_LINK }}
+          # CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}

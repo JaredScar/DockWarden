@@ -1,8 +1,9 @@
-const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, globalShortcut, Notification, shell, screen } = require('electron');
+const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, globalShortcut, Notification, shell, screen, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { exec, spawn } = require('child_process');
 const { promisify } = require('util');
+const { autoUpdater } = require('electron-updater');
 
 const execAsync = promisify(exec);
 
@@ -834,6 +835,17 @@ function setupIpcHandlers() {
       return { success: false, version: null };
     }
   });
+
+  // ─── Auto-updater IPC ──────────────────────────────────────────────────────
+
+  ipcMain.handle('updater:check', () => {
+    if (!isDev) autoUpdater.checkForUpdates();
+    return { checking: !isDev };
+  });
+
+  ipcMain.handle('updater:install-and-relaunch', () => {
+    autoUpdater.quitAndInstall();
+  });
 }
 
 function extractBwError(msg) {
@@ -891,6 +903,54 @@ app.whenReady().then(() => {
   createTray();
   registerGlobalShortcuts();
   setupIpcHandlers();
+
+  // ─── Auto-updater ──────────────────────────────────────────────────────────
+  // Skip update checks in dev mode (no published release to compare against)
+  if (!isDev) {
+    autoUpdater.autoDownload = true;
+    autoUpdater.autoInstallOnAppQuit = true;
+
+    autoUpdater.on('checking-for-update', () => {
+      mainWindow?.webContents.send('updater:status', { status: 'checking' });
+    });
+
+    autoUpdater.on('update-available', (info) => {
+      mainWindow?.webContents.send('updater:status', { status: 'available', version: info.version });
+    });
+
+    autoUpdater.on('update-not-available', () => {
+      mainWindow?.webContents.send('updater:status', { status: 'up-to-date' });
+    });
+
+    autoUpdater.on('download-progress', (progress) => {
+      mainWindow?.webContents.send('updater:status', {
+        status: 'downloading',
+        percent: Math.round(progress.percent),
+      });
+    });
+
+    autoUpdater.on('update-downloaded', (info) => {
+      mainWindow?.webContents.send('updater:status', { status: 'downloaded', version: info.version });
+      dialog.showMessageBox(mainWindow, {
+        type: 'info',
+        title: 'Update ready',
+        message: `DockWarden ${info.version} is ready to install.`,
+        detail: 'The update will be applied the next time you quit and reopen the app, or you can restart now.',
+        buttons: ['Restart now', 'Later'],
+        defaultId: 0,
+      }).then(({ response }) => {
+        if (response === 0) autoUpdater.quitAndInstall();
+      });
+    });
+
+    autoUpdater.on('error', (err) => {
+      mainWindow?.webContents.send('updater:status', { status: 'error', error: err.message });
+    });
+
+    // Check on startup, then every 4 hours
+    autoUpdater.checkForUpdates();
+    setInterval(() => autoUpdater.checkForUpdates(), 4 * 60 * 60 * 1000);
+  }
 });
 
 app.on('window-all-closed', () => {
