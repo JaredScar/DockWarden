@@ -70,7 +70,8 @@
     "publish": {
       "provider": "github",
       "owner": "JaredScar",
-      "repo": "DockWarden"
+      "repo": "DockWarden",
+      "releaseType": "release"
     },
     "mac": {
       "category": "public.app-category.productivity",
