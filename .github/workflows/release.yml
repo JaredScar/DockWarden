@@ -1,19 +1,85 @@
 name: Build & Release
 
-# Triggers on any tag matching v1.2.3 — push a tag to create a release:
-#   git tag v1.0.1 && git push origin v1.0.1
+# Fires on every push to master.
+# semantic-release decides whether a new version is warranted based on
+# Conventional Commit prefixes in the commit messages:
+#
+#   fix:      → patch bump  (1.0.0 → 1.0.1)
+#   feat:     → minor bump  (1.0.0 → 1.1.0)
+#   feat!: / BREAKING CHANGE → major bump  (1.0.0 → 2.0.0)
+#   chore: / docs: / style: / refactor: / test: → no release
+#
+# When a release is warranted:
+#   1. semantic-release bumps package.json, writes CHANGELOG.md, creates
+#      a GitHub Release, and tags the commit.
+#   2. Three parallel build jobs pick up that tag and build platform-specific
+#      installers, uploading them to the same GitHub Release.
+#
+# Commits from the version-bump step itself contain "[skip ci]" so they
+# do not retrigger this workflow.
+
 on:
   push:
-    tags:
-      - "v*.*.*"
+    branches:
+      - master
 
-# GITHUB_TOKEN needs write access to create the release and upload assets
 permissions:
   contents: write
+  issues: write
+  pull-requests: write
 
 jobs:
+  # ────────────────────────────────────────────────────────────────────────────
+  # Job 1 — Semantic release
+  # Analyses commits, bumps version, writes changelog, creates GitHub release.
+  # ────────────────────────────────────────────────────────────────────────────
+  release:
+    name: Semantic Release
+    runs-on: ubuntu-latest
+    outputs:
+      released: ${{ steps.sr.outputs.new_release_published }}
+      version:  ${{ steps.sr.outputs.new_release_version }}
+      tag:      ${{ steps.sr.outputs.new_release_git_tag }}
+
+    steps:
+      - name: Checkout (full history)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # semantic-release needs the full git history
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: dockwarden/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: dockwarden
+
+      - name: Run semantic-release
+        id: sr
+        run: npx semantic-release
+        working-directory: dockwarden
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GIT_AUTHOR_NAME: github-actions[bot]
+          GIT_AUTHOR_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
+          GIT_COMMITTER_NAME: github-actions[bot]
+          GIT_COMMITTER_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # Jobs 2-4 — Build installers
+  # Only runs when a new release was actually published.
+  # Checks out the release tag so package.json version is correct.
+  # electron-builder --publish always finds the existing GitHub Release by tag
+  # and uploads the platform installer as a release asset.
+  # ────────────────────────────────────────────────────────────────────────────
   build:
     name: Build — ${{ matrix.name }}
+    needs: release
+    if: needs.release.outputs.released == 'true'
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -30,11 +96,11 @@ jobs:
             build_args: --linux
 
     steps:
-      # ── Checkout ─────────────────────────────────────────────────────────────
-      - name: Checkout
+      - name: Checkout release tag
         uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release.outputs.tag }}
 
-      # ── Node.js ──────────────────────────────────────────────────────────────
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
@@ -42,8 +108,7 @@ jobs:
           cache: npm
           cache-dependency-path: dockwarden/package-lock.json
 
-      # ── Linux system deps (needed by Electron / electron-builder) ────────────
-      - name: Install Linux build dependencies
+      - name: Install Linux system dependencies
         if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get update -y
@@ -52,33 +117,27 @@ jobs:
             libgdk-pixbuf2.0-dev libgtk-3-dev libxss-dev \
             libgbm-dev libasound2-dev rpm fakeroot
 
-      # ── App dependencies ─────────────────────────────────────────────────────
       - name: Install dependencies
         run: npm ci
         working-directory: dockwarden
 
-      # ── Angular production build ─────────────────────────────────────────────
-      - name: Build Angular
+      - name: Build Angular (production)
         run: npm run build:prod
         working-directory: dockwarden
 
-      # ── Electron packager + publish to GitHub Release ────────────────────────
-      # electron-builder reads GH_TOKEN to create/update the release and upload
-      # the installers as release assets automatically.
-      - name: Build & publish Electron app
+      - name: Build & upload Electron installers
         run: npx electron-builder ${{ matrix.build_args }} --publish always
         working-directory: dockwarden
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # ── macOS code signing (optional) ─────────────────────────────────────
-          # To enable signing, add these secrets in your repo settings:
-          #   APPLE_ID            — your Apple ID email
-          #   APPLE_APP_PASSWORD  — app-specific password from appleid.apple.com
-          #   APPLE_TEAM_ID       — your 10-character Team ID
-          #   CSC_LINK            — base64-encoded .p12 certificate
-          #   CSC_KEY_PASSWORD    — certificate passphrase
+          # ── macOS code signing (optional) ─────────────────────────────────
+          # Add these secrets in repo Settings → Secrets → Actions to enable:
+          #   APPLE_ID            your Apple ID email
+          #   APPLE_APP_PASSWORD  app-specific password from appleid.apple.com
+          #   APPLE_TEAM_ID       your 10-character Team ID
+          #   CSC_LINK            base64-encoded .p12 certificate
+          #   CSC_KEY_PASSWORD    certificate passphrase
           #
-          # Uncomment the lines below once the secrets are configured:
           # APPLE_ID: ${{ secrets.APPLE_ID }}
           # APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
           # APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
