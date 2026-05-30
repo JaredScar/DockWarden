@@ -16,7 +16,7 @@ export interface TotpEntry {
 
 // ── Minimal TOTP implementation using Web Crypto API ─────────────────────────
 
-function base32Decode(encoded: string): Uint8Array {
+function base32Decode(encoded: string): Uint8Array<ArrayBuffer> {
   const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
   const clean = encoded.toUpperCase().replace(/\s|=/g, '');
   const bytes: number[] = [];
@@ -32,7 +32,10 @@ function base32Decode(encoded: string): Uint8Array {
       bytes.push((buffer >> bitsLeft) & 0xff);
     }
   }
-  return new Uint8Array(bytes);
+  const buf = new ArrayBuffer(bytes.length);
+  const view = new Uint8Array(buf);
+  bytes.forEach((b, i) => { view[i] = b; });
+  return view;
 }
 
 async function computeTotp(secret: string): Promise<{ code: string; secondsLeft: number; period: number }> {
