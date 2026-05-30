@@ -1,0 +1,112 @@
+<div class="accounts-page">
+  <div class="page-header">
+    <div>
+      <h1><i class="fas fa-users" style="color:var(--accent-blue);margin-right:10px"></i>Accounts</h1>
+      <p>Manage your saved Bitwarden accounts and switch between them</p>
+    </div>
+    @if (!showAddForm()) {
+      <button class="btn btn-primary" (click)="openAddForm()">
+        <i class="fas fa-plus"></i> Add Account
+      </button>
+    }
+  </div>
+
+  <!-- ── Add Account Form ──────────────────────────────────────────────── -->
+  @if (showAddForm()) {
+    <div class="add-form-card">
+      <div class="add-form-header">
+        <span><i class="fas fa-right-to-bracket" style="color:var(--accent-blue);margin-right:8px"></i>Sign in to another account</span>
+        <button class="btn-close-form" (click)="cancelAdd()" title="Cancel">
+          <i class="fas fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="add-form-warning">
+        <i class="fas fa-triangle-exclamation" style="color:#f59e0b"></i>
+        This will log out of your current vault session. Your current account is saved and you can switch back at any time.
+      </div>
+
+      <div class="add-form-body">
+        <div class="form-group">
+          <label class="form-label">Email</label>
+          <input class="form-input" type="email" placeholder="user@example.com"
+                 [ngModel]="addEmail()" (ngModelChange)="addEmail.set($event)"
+                 (keydown.enter)="submitAdd()" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Master Password</label>
+          <div class="pw-wrap">
+            <input class="form-input" [type]="addShowPw() ? 'text' : 'password'"
+                   placeholder="Master password"
+                   [ngModel]="addPassword()" (ngModelChange)="addPassword.set($event)"
+                   (keydown.enter)="submitAdd()" />
+            <button class="pw-eye" type="button" (click)="addShowPw.update(v => !v)">
+              <i class="fas {{ addShowPw() ? 'fa-eye-slash' : 'fa-eye' }}"></i>
+            </button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Server URL <span class="form-label-hint">(leave default for Bitwarden.com)</span></label>
+          <input class="form-input" type="url" placeholder="https://bitwarden.com"
+                 [ngModel]="addServer()" (ngModelChange)="addServer.set($event)" />
+        </div>
+
+        @if (addError()) {
+          <div class="add-error"><i class="fas fa-circle-exclamation"></i> {{ addError() }}</div>
+        }
+
+        <div class="add-form-actions">
+          <button class="btn btn-ghost" (click)="cancelAdd()" [disabled]="addSaving()">Cancel</button>
+          <button class="btn btn-primary" (click)="submitAdd()" [disabled]="addSaving()">
+            @if (addSaving()) {
+              <i class="fas fa-spinner fa-spin"></i> Signing in…
+            } @else {
+              <i class="fas fa-right-to-bracket"></i> Sign In &amp; Add
+            }
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+
+  <!-- ── Account List ──────────────────────────────────────────────────── -->
+  @if (loading()) {
+    <div class="accounts-loading"><i class="fas fa-spinner fa-spin"></i> Loading…</div>
+  } @else if (profiles().length === 0) {
+    <div class="accounts-empty">
+      <i class="fas fa-user-slash" style="font-size:40px;color:var(--text-muted);margin-bottom:12px"></i>
+      <p>No accounts saved yet</p>
+      <span>Sign into a Bitwarden vault to automatically save it here</span>
+    </div>
+  } @else {
+    <div class="accounts-list">
+      @for (profile of profiles(); track profile.id; let i = $index) {
+        <div class="account-card" [class.active-card]="profile.id === activeId()">
+          <div class="account-avatar" [style.background]="profile.color">
+            {{ getInitials(profile.name) }}
+          </div>
+          <div class="account-info">
+            <div class="account-name">
+              {{ profile.name }}
+              @if (profile.id === activeId()) {
+                <span class="active-badge"><i class="fas fa-circle" style="font-size:6px"></i> Active</span>
+              }
+            </div>
+            <div class="account-email">{{ profile.email }}</div>
+            <div class="account-server">{{ profile.serverUrl }}</div>
+          </div>
+          <div class="account-actions">
+            @if (profile.id !== activeId()) {
+              <button class="btn btn-secondary btn-sm" (click)="switchTo(profile)">
+                <i class="fas fa-right-left"></i> Switch
+              </button>
+              <button class="btn btn-danger btn-sm" (click)="remove(profile.id)" title="Remove account">
+                <i class="fas fa-trash"></i>
+              </button>
+            }
+          </div>
+        </div>
+      }
+    </div>
+  }
+</div>

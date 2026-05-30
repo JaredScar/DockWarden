@@ -86,58 +86,12 @@ export class App implements OnInit, OnDestroy {
 
   addAccount(): void {
     this.showAccountSwitcher.set(false);
-    this.addAccountEmail.set('');
-    this.addAccountPassword.set('');
-    this.addAccountServer.set('https://bitwarden.com');
-    this.addAccountError.set('');
-    this.addAccountShowPw.set(false);
-    this.addAccountOpen.set(true);
+    this.router.navigate(['/accounts']);
   }
 
   async removeAccount(id: string): Promise<void> {
     await this.vaultService.removeAccountProfile(id);
     this.accounts.update(list => list.filter(a => a.id !== id));
-  }
-
-  // ── Add Account modal ──────────────────────────────────────────────────────
-  readonly addAccountOpen = signal(false);
-  readonly addAccountEmail = signal('');
-  readonly addAccountPassword = signal('');
-  readonly addAccountServer = signal('https://bitwarden.com');
-  readonly addAccountSaving = signal(false);
-  readonly addAccountError = signal('');
-  readonly addAccountShowPw = signal(false);
-
-  closeAddAccount(): void { this.addAccountOpen.set(false); }
-
-  async submitAddAccount(): Promise<void> {
-    const email = this.addAccountEmail().trim();
-    const password = this.addAccountPassword();
-    const server = this.addAccountServer().trim() || 'https://bitwarden.com';
-    if (!email || !password) { this.addAccountError.set('Email and password are required.'); return; }
-
-    this.addAccountSaving.set(true);
-    this.addAccountError.set('');
-
-    // Logout of current session first, then login with new credentials
-    await window.electronAPI?.vault.logout();
-    const result = await window.electronAPI?.vault.login(email, password, server);
-
-    this.addAccountSaving.set(false);
-
-    if (result?.success) {
-      // Reload account list so the new profile appears immediately
-      const profiles = await window.electronAPI!.account.getProfiles();
-      this.accounts.set(profiles);
-      const activeId = await window.electronAPI!.account.getActive();
-      this.activeAccountId.set(activeId);
-      this.addAccountOpen.set(false);
-      this.router.navigate(['/home']);
-    } else if (result?.requiresTwoFactor) {
-      this.addAccountError.set('2FA required — please use the login screen for accounts that need a verification code.');
-    } else {
-      this.addAccountError.set(result?.error ?? 'Login failed. Check your credentials and try again.');
-    }
   }
 
   // ── New Item modal (stays in-app) ──────────────────────────────────────────

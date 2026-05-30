@@ -30,11 +30,11 @@
             </button>
           }
           <div class="account-dropdown-divider"></div>
-          <button class="account-item account-item-settings" (click)="addAccount()">
+          <a routerLink="/accounts" class="account-item account-item-settings" (click)="showAccountSwitcher.set(false)">
             <i class="fas fa-plus" style="font-size:12px;color:var(--accent-blue)"></i>
             <span style="color:var(--accent-blue)">Add Account</span>
-          </button>
-          <a routerLink="/settings" class="account-item account-item-settings" (click)="showAccountSwitcher.set(false)">
+          </a>
+          <a routerLink="/accounts" class="account-item account-item-settings" (click)="showAccountSwitcher.set(false)">
             <i class="fas fa-gear" style="font-size:13px;color:var(--text-muted)"></i>
             <span>Manage Accounts</span>
           </a>
@@ -123,6 +123,11 @@
       <!-- Tools -->
       <div class="sidebar-section">
         <div class="section-label">TOOLS</div>
+        <a routerLink="/accounts" routerLinkActive="active" class="nav-item nav-item-sm">
+          <i class="fas fa-users nav-icon-sm"></i>
+          <span class="nav-label">Accounts</span>
+          <span class="nav-count">{{ accounts().length }}</span>
+        </a>
         <a routerLink="/totp" routerLinkActive="active" class="nav-item nav-item-sm">
           <i class="fas fa-shield-halved nav-icon-sm"></i>
           <span class="nav-label">TOTP Codes</span>
@@ -274,61 +279,6 @@
       </div>
     </div>
   </div>
-
-  <!-- Add Account Modal -->
-  @if (addAccountOpen()) {
-    <div class="modal-overlay" (click)="closeAddAccount()">
-      <div class="modal-box" (click)="$event.stopPropagation()">
-        <div class="modal-header">
-          <span><i class="fas fa-user-plus" style="color:var(--accent-blue);margin-right:8px"></i>Add Another Account</span>
-          <button class="modal-close" (click)="closeAddAccount()"><i class="fas fa-xmark"></i></button>
-        </div>
-        <div class="modal-body">
-          <p style="font-size:12px;color:var(--text-muted);margin-bottom:16px;line-height:1.5">
-            <i class="fas fa-triangle-exclamation" style="color:#f59e0b;margin-right:4px"></i>
-            This will log out of your current vault session. Your current account profile is saved and you can switch back from the account switcher.
-          </p>
-
-          <div class="form-group">
-            <label class="form-label">Email</label>
-            <input class="form-input" type="email" placeholder="user@example.com"
-                   [ngModel]="addAccountEmail()" (ngModelChange)="addAccountEmail.set($event)" />
-          </div>
-          <div class="form-group">
-            <label class="form-label">Password</label>
-            <div style="position:relative">
-              <input class="form-input" [type]="addAccountShowPw() ? 'text' : 'password'" placeholder="Master password"
-                     [ngModel]="addAccountPassword()" (ngModelChange)="addAccountPassword.set($event)" />
-              <button class="pw-toggle" (click)="addAccountShowPw.update(v => !v)" type="button">
-                <i class="fas {{ addAccountShowPw() ? 'fa-eye-slash' : 'fa-eye' }}"></i>
-              </button>
-            </div>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Server URL</label>
-            <input class="form-input" type="url" placeholder="https://bitwarden.com"
-                   [ngModel]="addAccountServer()" (ngModelChange)="addAccountServer.set($event)" />
-          </div>
-
-          @if (addAccountError()) {
-            <div class="modal-error">
-              <i class="fas fa-circle-exclamation"></i> {{ addAccountError() }}
-            </div>
-          }
-        </div>
-        <div class="modal-footer">
-          <button class="btn btn-ghost" (click)="closeAddAccount()" [disabled]="addAccountSaving()">Cancel</button>
-          <button class="btn btn-primary" (click)="submitAddAccount()" [disabled]="addAccountSaving()">
-            @if (addAccountSaving()) {
-              <i class="fas fa-spinner fa-spin"></i> Signing in…
-            } @else {
-              <i class="fas fa-right-to-bracket"></i> Sign In &amp; Add
-            }
-          </button>
-        </div>
-      </div>
-    </div>
-  }
 
   <!-- Clipboard Auto-Clear Toast -->
   @if (clipboardService.activeField()) {

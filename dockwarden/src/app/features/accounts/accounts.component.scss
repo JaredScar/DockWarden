@@ -1,0 +1,247 @@
+:host { display: block; width: 100%; }
+
+.accounts-page {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  h1 { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
+  p { font-size: 13px; color: var(--text-secondary); }
+}
+
+// ── Add Form Card ─────────────────────────────────────────────────────────────
+
+.add-form-card {
+  background: var(--bg-card);
+  border: 1px solid var(--accent-blue);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.add-form-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border);
+  font-size: 14px;
+  font-weight: 500;
+  background: rgba(37, 99, 235, 0.06);
+}
+
+.btn-close-form {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 16px;
+  padding: 4px;
+  border-radius: var(--radius-md);
+  &:hover { color: var(--text-primary); background: var(--bg-card-hover); }
+}
+
+.add-form-warning {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 20px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  background: rgba(245, 158, 11, 0.06);
+  border-bottom: 1px solid var(--border);
+  line-height: 1.5;
+}
+
+.add-form-body {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 480px;
+}
+
+.form-group { display: flex; flex-direction: column; gap: 6px; }
+.form-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.form-label-hint { font-size: 11px; font-weight: 400; color: var(--text-muted); }
+.form-input {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 8px 12px;
+  font-size: 13px;
+  color: var(--text-primary);
+  font-family: inherit;
+  outline: none;
+  width: 100%;
+  transition: border-color var(--transition);
+  &:focus { border-color: var(--accent-blue); }
+  &::placeholder { color: var(--text-muted); }
+}
+
+.pw-wrap {
+  position: relative;
+  .form-input { padding-right: 36px; }
+}
+
+.pw-eye {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 13px;
+  padding: 4px;
+  &:hover { color: var(--text-primary); }
+}
+
+.add-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  color: #ef4444;
+}
+
+.add-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-top: 4px;
+}
+
+// ── Account List ──────────────────────────────────────────────────────────────
+
+.accounts-loading {
+  padding: 48px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.accounts-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 64px 32px;
+  gap: 6px;
+  text-align: center;
+  p { font-size: 15px; font-weight: 500; color: var(--text-secondary); }
+  span { font-size: 13px; color: var(--text-muted); }
+}
+
+.accounts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.account-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  transition: border-color var(--transition);
+
+  &:hover { border-color: var(--text-muted); }
+
+  &.active-card {
+    border-color: var(--accent-blue);
+    background: rgba(37, 99, 235, 0.04);
+  }
+}
+
+.account-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 700;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.account-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.account-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 3px;
+}
+
+.active-badge {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--accent-green);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.account-email { font-size: 13px; color: var(--text-secondary); margin-bottom: 2px; }
+.account-server { font-size: 11px; color: var(--text-muted); }
+
+.account-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+// ── Buttons ───────────────────────────────────────────────────────────────────
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all var(--transition);
+  font-family: inherit;
+  &:disabled { opacity: .5; cursor: not-allowed; }
+  &-primary { background: var(--accent-blue); color: #fff; border-color: var(--accent-blue); &:hover:not(:disabled) { background: #2563eb; } }
+  &-secondary { background: var(--bg-tertiary); color: var(--text-secondary); border-color: var(--border); &:hover:not(:disabled) { background: var(--bg-card-hover); color: var(--text-primary); } }
+  &-ghost { background: none; border-color: var(--border); color: var(--text-secondary); &:hover:not(:disabled) { background: var(--bg-card-hover); color: var(--text-primary); } }
+  &-danger { background: rgba(239,68,68,0.1); color: #ef4444; border-color: rgba(239,68,68,0.3); &:hover:not(:disabled) { background: rgba(239,68,68,0.2); } }
+  &-sm { padding: 5px 10px; font-size: 12px; }
+}

@@ -70,5 +70,10 @@ export const routes: Routes = [
     loadComponent: () => import('./features/totp/totp-panel.component').then(m => m.TotpPanelComponent),
     canActivate: [authGuard],
   },
+  {
+    path: 'accounts',
+    loadComponent: () => import('./features/accounts/accounts.component').then(m => m.AccountsComponent),
+    canActivate: [authGuard],
+  },
   { path: '**', redirectTo: 'unlock' },
 ];
