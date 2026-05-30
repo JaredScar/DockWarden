@@ -442,19 +442,7 @@ function setupIpcHandlers() {
           if (serverUrl) store.set('bwServerUrl', serverUrl);
           pending2FA = null;
           // Auto-save account profile on first login
-          const _profiles = store.get('accountProfiles', []);
-          const _srv = serverUrl || 'https://bitwarden.com';
-          const _existing = _profiles.find(p => p.email === email && p.serverUrl === _srv);
-          if (!_existing) {
-            const _COLORS = ['#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#a855f7', '#06b6d4', '#ec4899', '#f97316'];
-            const _id = `acct-${Date.now()}`;
-            const _color = _COLORS[_profiles.length % _COLORS.length];
-            const _prof = { id: _id, name: email.split('@')[0] || email, email, serverUrl: _srv, color: _color };
-            store.set('accountProfiles', [..._profiles, _prof]);
-            store.set('activeAccountId', _id);
-          } else {
-            store.set('activeAccountId', _existing.id);
-          }
+          saveAccountProfile(email, serverUrl || 'https://bitwarden.com');
           settle({ success: true });
         } else {
           const msg = stderr + stdout;
@@ -584,6 +572,10 @@ function setupIpcHandlers() {
       const env = { ...process.env, BW_PASSWORD: password };
       const output = await runBw(['unlock', '--passwordenv', 'BW_PASSWORD', '--raw'], env);
       bwSession = output.trim();
+      // Ensure the current email/server is persisted as a profile so the switcher shows it
+      const email = store.get('bwEmail', '');
+      const serverUrl = store.get('bwServerUrl', 'https://bitwarden.com');
+      if (email) saveAccountProfile(email, serverUrl);
       return { success: true };
     } catch (err) {
       return { success: false, error: extractBwError(err.message) };
@@ -1148,11 +1140,33 @@ function handleAlreadyLoggedIn(email, serverUrl, env, settle) {
       bwSession = out.trim();
       store.set('bwEmail', email);
       if (serverUrl) store.set('bwServerUrl', serverUrl);
+      // Ensure the account profile is saved even for the "already logged in" path
+      saveAccountProfile(email, serverUrl || 'https://bitwarden.com');
       settle({ success: true });
     })
     .catch(err => {
       settle({ success: false, error: extractBwError(String(err.message)) });
     });
+}
+
+/**
+ * Upsert an account profile in the local store and mark it as active.
+ * Safe to call multiple times — avoids duplicates by email + serverUrl.
+ */
+function saveAccountProfile(email, serverUrl) {
+  const profiles = store.get('accountProfiles', []);
+  const srv = serverUrl || 'https://bitwarden.com';
+  const existing = profiles.find(p => p.email === email && p.serverUrl === srv);
+  if (existing) {
+    store.set('activeAccountId', existing.id);
+    return;
+  }
+  const COLORS = ['#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#a855f7', '#06b6d4', '#ec4899', '#f97316'];
+  const id = `acct-${Date.now()}`;
+  const color = COLORS[profiles.length % COLORS.length];
+  const prof = { id, name: email.split('@')[0] || email, email, serverUrl: srv, color };
+  store.set('accountProfiles', [...profiles, prof]);
+  store.set('activeAccountId', id);
 }
 
 

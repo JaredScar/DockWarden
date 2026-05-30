@@ -84,6 +84,14 @@ export class App implements OnInit, OnDestroy {
     await this.vaultService.switchAccount(account.id);
   }
 
+  addAccount(): void {
+    // Lock vault and go to login screen so user can authenticate with a new account
+    this.showAccountSwitcher.set(false);
+    this.vaultService.lock().then(() => {
+      this.router.navigate(['/unlock'], { queryParams: { newAccount: '1' } });
+    });
+  }
+
   async removeAccount(id: string): Promise<void> {
     await this.vaultService.removeAccountProfile(id);
     this.accounts.update(list => list.filter(a => a.id !== id));
@@ -145,9 +153,16 @@ export class App implements OnInit, OnDestroy {
   // ── Lifecycle ──────────────────────────────────────────────────────────────
 
   async ngOnInit(): Promise<void> {
-    this.router.events.pipe(filter(e => e instanceof NavigationEnd)).subscribe(e => {
+    this.router.events.pipe(filter(e => e instanceof NavigationEnd)).subscribe(async e => {
       this.currentUrl.set((e as NavigationEnd).urlAfterRedirects);
       this.showAccountSwitcher.set(false);
+      // Refresh account list whenever we navigate (e.g. after unlock)
+      if (window.electronAPI && this.isUnlocked()) {
+        const profiles = await window.electronAPI.account.getProfiles();
+        this.accounts.set(profiles);
+        const activeId = await window.electronAPI.account.getActive();
+        this.activeAccountId.set(activeId);
+      }
     });
 
     if (window.electronAPI) {

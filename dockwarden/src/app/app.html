@@ -29,12 +29,13 @@
               }
             </button>
           }
-          @if (accounts().length === 0) {
-            <div class="account-dropdown-empty">No accounts saved</div>
-          }
           <div class="account-dropdown-divider"></div>
+          <button class="account-item account-item-settings" (click)="addAccount()">
+            <i class="fas fa-plus" style="font-size:12px;color:var(--accent-blue)"></i>
+            <span style="color:var(--accent-blue)">Add Account</span>
+          </button>
           <a routerLink="/settings" class="account-item account-item-settings" (click)="showAccountSwitcher.set(false)">
-            <i class="fas fa-user-plus" style="font-size:13px;color:var(--text-muted)"></i>
+            <i class="fas fa-gear" style="font-size:13px;color:var(--text-muted)"></i>
             <span>Manage Accounts</span>
           </a>
         </div>
