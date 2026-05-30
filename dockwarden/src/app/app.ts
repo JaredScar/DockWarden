@@ -1,7 +1,7 @@
 import { Component, OnInit, OnDestroy, inject, signal, computed, ChangeDetectionStrategy } from '@angular/core';
 import { RouterOutlet, RouterLink, RouterLinkActive, Router, NavigationEnd } from '@angular/router';
 import { FormsModule } from '@angular/forms';
-import { VaultService } from './core/vault.service';
+import { VaultService, AccountProfile } from './core/vault.service';
 import { SmartViewService } from './core/smart-view.service';
 import { CommonModule } from '@angular/common';
 import { filter } from 'rxjs/operators';
@@ -59,6 +59,34 @@ export class App implements OnInit, OnDestroy {
     return result;
   });
 
+  // ── Account switcher ──────────────────────────────────────────────────────
+  readonly accounts = signal<AccountProfile[]>([]);
+  readonly activeAccountId = signal<string | null>(null);
+  readonly showAccountSwitcher = signal(false);
+
+  readonly activeAccount = computed(() => {
+    const id = this.activeAccountId();
+    return this.accounts().find(a => a.id === id) ?? null;
+  });
+
+  toggleAccountSwitcher(): void {
+    this.showAccountSwitcher.update(v => !v);
+  }
+
+  async switchAccount(account: AccountProfile): Promise<void> {
+    if (account.id === this.activeAccountId()) {
+      this.showAccountSwitcher.set(false);
+      return;
+    }
+    this.showAccountSwitcher.set(false);
+    await this.vaultService.switchAccount(account.id);
+  }
+
+  async removeAccount(id: string): Promise<void> {
+    await this.vaultService.removeAccountProfile(id);
+    this.accounts.update(list => list.filter(a => a.id !== id));
+  }
+
   // ── New Item modal (stays in-app) ──────────────────────────────────────────
   readonly newItemOpen = signal(false);
   readonly newItemType = signal<'login' | 'note'>('login');
@@ -77,7 +105,6 @@ export class App implements OnInit, OnDestroy {
   }
 
   openNewItem(): void {
-    this.newItemType.set('login');
     this.newItemName.set('');
     this.newItemUsername.set('');
     this.newItemPassword.set('');
@@ -118,6 +145,7 @@ export class App implements OnInit, OnDestroy {
   async ngOnInit(): Promise<void> {
     this.router.events.pipe(filter(e => e instanceof NavigationEnd)).subscribe(e => {
       this.currentUrl.set((e as NavigationEnd).urlAfterRedirects);
+      this.showAccountSwitcher.set(false);
     });
 
     if (window.electronAPI) {
@@ -136,6 +164,12 @@ export class App implements OnInit, OnDestroy {
       // Restore saved custom CSS
       const savedCSS = await window.electronAPI.app.getStore('customCSS') as string | null;
       if (savedCSS) App.injectCSS(savedCSS);
+
+      // Load account profiles
+      const profiles = await window.electronAPI.account.getProfiles();
+      this.accounts.set(profiles);
+      const activeId = await window.electronAPI.account.getActive();
+      this.activeAccountId.set(activeId);
     }
 
     this._kbHandler = (e: KeyboardEvent) => {

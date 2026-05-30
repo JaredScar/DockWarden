@@ -62,6 +62,163 @@
   .list-count { font-size: 11px; color: var(--text-muted); }
 }
 
+// ─── Multi-Tag Filter Bar ─────────────────────────────────────────────────────
+.tag-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--accent-blue) 6%, var(--bg-secondary));
+  flex-wrap: wrap;
+}
+
+.tag-filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+}
+
+.tag-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 6px 3px 7px;
+  background: rgba(59, 130, 246, 0.15);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  border-radius: 12px;
+  font-size: 11px;
+  color: var(--accent-blue);
+  font-weight: 500;
+
+  i.fa-tag { font-size: 9px; opacity: 0.7; }
+
+  .tag-chip-remove {
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    color: var(--accent-blue);
+    opacity: 0.6;
+    font-size: 9px;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    &:hover { opacity: 1; }
+  }
+}
+
+.tag-filter-add-btn {
+  background: rgba(59, 130, 246, 0.08);
+  border: 1px dashed rgba(59, 130, 246, 0.35);
+  border-radius: 12px;
+  color: var(--accent-blue);
+  font-size: 9px;
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  &:hover { background: rgba(59, 130, 246, 0.2); }
+}
+
+.tag-filter-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.tag-mode-btn {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  letter-spacing: 0.5px;
+  &:hover { background: var(--bg-card-hover); color: var(--accent-blue); border-color: var(--accent-blue); }
+}
+
+.tag-filter-clear-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-size: 10px;
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  &:hover { background: rgba(239, 68, 68, 0.1); color: var(--accent-red); border-color: var(--accent-red); }
+}
+
+// ─── Tag Picker Panel ─────────────────────────────────────────────────────────
+.tag-picker-panel {
+  padding: 8px 10px 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-secondary);
+}
+
+.tag-picker-title {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+}
+
+.tag-picker-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.tag-pick-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--transition);
+
+  .tag-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  &:hover { background: var(--bg-card-hover); color: var(--text-primary); }
+  &.active {
+    background: rgba(59, 130, 246, 0.15);
+    border-color: rgba(59, 130, 246, 0.3);
+    color: var(--accent-blue);
+  }
+}
+
+.tag-picker-empty {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
 .items-list {
   flex: 1;
   overflow-y: auto;

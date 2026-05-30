@@ -2,7 +2,7 @@ import { Component, signal, inject, OnInit, OnDestroy, ChangeDetectionStrategy }
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import { VaultService } from '../../core/vault.service';
+import { VaultService, AccountProfile } from '../../core/vault.service';
 import { App } from '../../app';
 
 @Component({
@@ -44,6 +44,10 @@ export class SettingsComponent implements OnInit, OnDestroy {
   readonly startMinimized = signal(true);
   readonly startWithSystem = signal(true);
   readonly savingCliPath = signal(false);
+
+  // ── Account profiles ───────────────────────────────────────────────────────
+  readonly accountProfiles = signal<AccountProfile[]>([]);
+  readonly activeAccountId = signal<string | null>(null);
 
   readonly syncIntervals = ['1 minute', '5 minutes', '15 minutes', '30 minutes', '1 hour'];
   readonly autoLockOptions = ['1 minute', '5 minutes', '15 minutes', '30 minutes', '1 hour', 'Never'];
@@ -152,6 +156,12 @@ export class SettingsComponent implements OnInit, OnDestroy {
 
       const saved = await window.electronAPI.app.getStore('customCSS') as string | null;
       if (saved) this.customCss.set(saved);
+
+      // Load account profiles
+      const profiles = await window.electronAPI.account.getProfiles();
+      this.accountProfiles.set(profiles);
+      const activeId = await window.electronAPI.account.getActive();
+      this.activeAccountId.set(activeId);
     }
     await this.checkCli();
   }
@@ -195,6 +205,16 @@ export class SettingsComponent implements OnInit, OnDestroy {
   async logoutVault(): Promise<void> {
     await this.vaultService.logout();
     this.router.navigate(['/unlock']);
+  }
+
+  async switchToAccount(id: string): Promise<void> {
+    await this.vaultService.switchAccount(id);
+  }
+
+  async removeAccountProfile(id: string): Promise<void> {
+    await this.vaultService.removeAccountProfile(id);
+    this.accountProfiles.update(list => list.filter(a => a.id !== id));
+    if (this.activeAccountId() === id) this.activeAccountId.set(null);
   }
 
   // ── CSS methods ────────────────────────────────────────────────────────────

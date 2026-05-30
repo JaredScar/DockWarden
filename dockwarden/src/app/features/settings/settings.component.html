@@ -476,4 +476,46 @@
 
 </div>
 
+<!-- Account Management inline section (full-width, below CSS editor) -->
+<div class="settings-section-full card" style="margin-top: 0">
+  <div class="section-header">
+    <i class="fas fa-users-gear section-icon"></i>
+    <div>
+      <h3>Account Profiles</h3>
+      <p class="section-desc">Switch between personal and work Bitwarden accounts. Color-coded for quick identification.</p>
+    </div>
+  </div>
+
+  <div class="account-profile-list">
+    @for (profile of accountProfiles(); track profile.id) {
+      <div class="account-profile-row" [class.is-active]="profile.id === activeAccountId()">
+        <span class="account-profile-color" [style.background]="profile.color"></span>
+        <div class="account-profile-info">
+          <span class="account-profile-name">{{ profile.name }}</span>
+          <span class="account-profile-email">{{ profile.email }}</span>
+          <span class="account-profile-server">{{ profile.serverUrl }}</span>
+        </div>
+        <div class="account-profile-actions">
+          @if (profile.id === activeAccountId()) {
+            <span class="badge badge-success"><i class="fas fa-check"></i> Active</span>
+          } @else {
+            <button class="btn btn-secondary btn-sm" (click)="switchToAccount(profile.id)">
+              <i class="fas fa-right-left"></i> Switch
+            </button>
+          }
+          <button class="btn-icon" title="Remove account" (click)="removeAccountProfile(profile.id)">
+            <i class="fas fa-trash"></i>
+          </button>
+        </div>
+      </div>
+    }
+    @if (accountProfiles().length === 0) {
+      <div class="account-profile-empty">
+        <i class="fas fa-user-slash" style="font-size:24px;color:var(--text-muted);margin-bottom:8px"></i>
+        <p>No saved account profiles. Sign in to add your first account.</p>
+      </div>
+    }
+  </div>
+</div>
+
 

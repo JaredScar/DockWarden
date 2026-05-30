@@ -11,6 +11,25 @@ export interface Folder {
   name: string;
 }
 
+export interface ExpiryPolicy {
+  id: string;
+  name: string;
+  description: string;
+  type: 'password-age';
+  thresholdDays: number;
+  itemTypes: string[];
+  enabled: boolean;
+  notifyDaysBefore: number;
+}
+
+export interface AccountProfile {
+  id: string;
+  name: string;
+  email: string;
+  serverUrl: string;
+  color: string;
+}
+
 declare global {
   interface Window {
     electronAPI?: {
@@ -28,6 +47,8 @@ declare global {
         unlock: (password: string) => Promise<{ success: boolean; error?: string }>;
         lock: () => Promise<{ success: boolean }>;
         logout: () => Promise<{ success: boolean }>;
+        getExpiryPolicies: () => Promise<ExpiryPolicy[]>;
+        setExpiryPolicies: (policies: ExpiryPolicy[]) => Promise<boolean>;
       };
       autotype: {
         send: (username: string, password: string, pressEnter: boolean) => Promise<{ success: boolean; error?: string }>;
@@ -46,6 +67,15 @@ declare global {
       backup: {
         runNow: () => Promise<{ success: boolean; timestamp: string; size: string }>;
         getHistory: () => Promise<BackupJob[]>;
+      };
+      account: {
+        getProfiles: () => Promise<AccountProfile[]>;
+        addProfile: (profile: Omit<AccountProfile, 'id' | 'color'>) => Promise<AccountProfile>;
+        updateProfile: (id: string, patch: Partial<AccountProfile>) => Promise<boolean>;
+        removeProfile: (id: string) => Promise<boolean>;
+        getActive: () => Promise<string | null>;
+        setActive: (id: string) => Promise<boolean>;
+        switch: (id: string) => Promise<{ success: boolean; error?: string }>;
       };
       app: {
         getStore: (key: string) => Promise<unknown>;
@@ -365,5 +395,66 @@ export class VaultService {
 
   getItemsByFolder(folder: string): VaultItem[] {
     return this._items().filter(i => i.folderId === folder);
+  }
+
+  // ── Expiry policies ────────────────────────────────────────────────────────
+
+  async getExpiryPolicies(): Promise<ExpiryPolicy[]> {
+    if (!window.electronAPI) return [];
+    return window.electronAPI.vault.getExpiryPolicies();
+  }
+
+  async setExpiryPolicies(policies: ExpiryPolicy[]): Promise<boolean> {
+    if (!window.electronAPI) return false;
+    return window.electronAPI.vault.setExpiryPolicies(policies);
+  }
+
+  /** Items flagged by a policy based on lastModified age vs thresholdDays */
+  getPolicyFlaggedItems(items: VaultItem[], policy: ExpiryPolicy): VaultItem[] {
+    if (!policy.enabled) return [];
+    const cutoff = new Date(Date.now() - policy.thresholdDays * 24 * 60 * 60 * 1000);
+    return items.filter(item => {
+      if (!policy.itemTypes.includes(item.type)) return false;
+      const modified = item.lastModified ? new Date(item.lastModified) : null;
+      if (!modified) return false;
+      return modified < cutoff;
+    });
+  }
+
+  // ── Account profiles ───────────────────────────────────────────────────────
+
+  async getAccountProfiles(): Promise<AccountProfile[]> {
+    if (!window.electronAPI) return [];
+    return window.electronAPI.account.getProfiles();
+  }
+
+  async addAccountProfile(profile: Omit<AccountProfile, 'id' | 'color'>): Promise<AccountProfile | null> {
+    if (!window.electronAPI) return null;
+    return window.electronAPI.account.addProfile(profile);
+  }
+
+  async removeAccountProfile(id: string): Promise<boolean> {
+    if (!window.electronAPI) return false;
+    return window.electronAPI.account.removeProfile(id);
+  }
+
+  async updateAccountProfile(id: string, patch: Partial<AccountProfile>): Promise<boolean> {
+    if (!window.electronAPI) return false;
+    return window.electronAPI.account.updateProfile(id, patch);
+  }
+
+  async getActiveAccountId(): Promise<string | null> {
+    if (!window.electronAPI) return null;
+    return window.electronAPI.account.getActive();
+  }
+
+  async switchAccount(id: string): Promise<{ success: boolean; error?: string }> {
+    if (!window.electronAPI) return { success: false, error: 'Not in Electron' };
+    const result = await window.electronAPI.account.switch(id);
+    if (result.success) {
+      this._authStatus.set('locked');
+      this._items.set([]);
+    }
+    return result;
   }
 }

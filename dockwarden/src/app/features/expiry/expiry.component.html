@@ -1,118 +1,340 @@
 <div class="expiry-page">
-  <div class="page-header">
-    <div class="page-title">
-      <h1>Password Expiry</h1>
-      <p>Track and manage credential expirations</p>
-    </div>
-    <div class="header-actions">
-      <button class="btn btn-secondary">
-        <i class="fas fa-download"></i> Export Report
-      </button>
-      <button class="btn btn-secondary">
-        <i class="fas fa-bell"></i> Reminder Settings
-      </button>
-    </div>
+
+  <!-- Main tab bar -->
+  <div class="main-tabs">
+    <button class="main-tab" [class.active]="mainTab() === 'tracker'" (click)="mainTab.set('tracker')">
+      <i class="fas fa-clock"></i> Expiry Tracker
+    </button>
+    <button class="main-tab" [class.active]="mainTab() === 'policies'" (click)="mainTab.set('policies')">
+      <i class="fas fa-shield-halved"></i> Policy Dashboard
+      @if (totalViolations() > 0) {
+        <span class="tab-badge">{{ totalViolations() }}</span>
+      }
+    </button>
   </div>
 
-  <!-- Summary Cards -->
-  <div class="expiry-summary">
-    <div class="summary-card expired-card">
-      <div class="summary-label">Expired</div>
-      <div class="summary-value">{{ expiredItems().length }}</div>
-      <i class="fas fa-triangle-exclamation summary-icon"></i>
-    </div>
-    <div class="summary-card week-card">
-      <div class="summary-label">This Week</div>
-      <div class="summary-value">{{ thisWeekItems().length }}</div>
-      <i class="fas fa-clock summary-icon"></i>
-    </div>
-    <div class="summary-card month-card">
-      <div class="summary-label">This Month</div>
-      <div class="summary-value">{{ thisMonthItems().length }}</div>
-      <i class="fas fa-calendar summary-icon"></i>
-    </div>
-  </div>
+  <!-- ══════════════════════════════════════════════════════════════
+       TAB 1 – Expiry Tracker (per-item expiry dates)
+  ══════════════════════════════════════════════════════════════ -->
+  @if (mainTab() === 'tracker') {
 
-  <!-- Two-column: list + reminder rules -->
-  <div class="expiry-content">
-    <!-- Left: Items List -->
-    <div>
-      <!-- Tabs -->
-      <div class="tabs">
-        <button class="tab" [class.active]="activeTab() === 'all'" (click)="activeTab.set('all')">All</button>
-        <button class="tab" [class.active]="activeTab() === 'expired'" (click)="activeTab.set('expired')">
-          Expired ({{ expiredItems().length }})
+    <div class="page-header">
+      <div class="page-title">
+        <h1>Password Expiry</h1>
+        <p>Track and manage credential expirations</p>
+      </div>
+      <div class="header-actions">
+        <button class="btn btn-secondary btn-sm" (click)="mainTab.set('policies')">
+          <i class="fas fa-shield-halved"></i> Manage Policies
         </button>
-        <button class="tab" [class.active]="activeTab() === 'this-week'" (click)="activeTab.set('this-week')">This Week</button>
-        <button class="tab" [class.active]="activeTab() === 'this-month'" (click)="activeTab.set('this-month')">This Month</button>
+      </div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="expiry-summary">
+      <div class="summary-card expired-card">
+        <div class="summary-label">Expired</div>
+        <div class="summary-value">{{ expiredItems().length }}</div>
+        <i class="fas fa-triangle-exclamation summary-icon"></i>
+      </div>
+      <div class="summary-card week-card">
+        <div class="summary-label">This Week</div>
+        <div class="summary-value">{{ thisWeekItems().length }}</div>
+        <i class="fas fa-clock summary-icon"></i>
+      </div>
+      <div class="summary-card month-card">
+        <div class="summary-label">This Month</div>
+        <div class="summary-value">{{ thisMonthItems().length }}</div>
+        <i class="fas fa-calendar summary-icon"></i>
+      </div>
+    </div>
+
+    <!-- Two-column: list + reminder rules -->
+    <div class="expiry-content">
+      <!-- Left: Items List -->
+      <div>
+        <!-- Tabs -->
+        <div class="tabs">
+          <button class="tab" [class.active]="activeTab() === 'all'" (click)="activeTab.set('all')">All</button>
+          <button class="tab" [class.active]="activeTab() === 'expired'" (click)="activeTab.set('expired')">
+            Expired ({{ expiredItems().length }})
+          </button>
+          <button class="tab" [class.active]="activeTab() === 'this-week'" (click)="activeTab.set('this-week')">This Week</button>
+          <button class="tab" [class.active]="activeTab() === 'this-month'" (click)="activeTab.set('this-month')">This Month</button>
+        </div>
+
+        <div class="expiry-list">
+          @for (entry of displayedItems(); track entry.item.id) {
+            <div class="expiry-row" [class.is-expired]="entry.status === 'expired'" [class.is-snoozed]="isSnooze(entry.item.id)">
+              <div class="item-icon-col">
+                <div class="item-avatar"><i class="fas fa-key"></i></div>
+              </div>
+              <div class="item-info">
+                <div class="item-name-row">
+                  <span class="item-name">{{ entry.item.name }}</span>
+                  @if (isSnooze(entry.item.id)) {
+                    <span class="badge badge-info"><i class="fas fa-bell-slash"></i> Snoozed</span>
+                  } @else {
+                    <span class="badge {{ getStatusBadge(entry.status, entry.days).cssClass }}">
+                      {{ getStatusBadge(entry.status, entry.days).label }}
+                    </span>
+                  }
+                </div>
+                <div class="item-meta">
+                  {{ entry.item.username }} · Expires {{ getExpiryDate(entry.item) }}
+                </div>
+              </div>
+              <div class="item-actions">
+                <button class="btn btn-secondary btn-sm" title="Mark as updated">
+                  <i class="fas fa-arrows-rotate"></i> Update
+                </button>
+                <button class="btn-icon" title="Snooze" (click)="snoozeItem(entry.item.id)">
+                  <i class="fas fa-bell-slash"></i>
+                </button>
+              </div>
+            </div>
+          }
+
+          @if (displayedItems().length === 0) {
+            <div class="empty-state">
+              <i class="fas fa-circle-check empty-icon"></i>
+              <p>No items in this category</p>
+            </div>
+          }
+        </div>
       </div>
 
-      <!-- Items List -->
-      <div class="expiry-list">
-        @for (entry of displayedItems(); track entry.item.id) {
-          <div class="expiry-row" [class.is-expired]="entry.status === 'expired'" [class.is-snoozed]="isSnooze(entry.item.id)">
-            <div class="item-icon-col">
-              <div class="item-avatar"><i class="fas fa-key"></i></div>
+      <!-- Right: Reminder Rules -->
+      <div class="reminder-rules card">
+        <h3>Reminder Rules</h3>
+        <p class="rules-desc">Configure when you want to be notified about expiring passwords</p>
+        <div class="rules-list">
+          @for (rule of [
+            { label: 'Notify 30 days before expiry', active: true },
+            { label: 'Notify 7 days before expiry', active: true },
+            { label: 'Notify on expiry date', active: true },
+            { label: 'Notify daily for expired items', active: true }
+          ]; track rule.label) {
+            <div class="rule-row">
+              <i class="fas fa-bell rule-icon"></i>
+              <span class="rule-label">{{ rule.label }}</span>
+              <label class="toggle">
+                <input type="checkbox" [checked]="rule.active" />
+                <span class="slider"></span>
+              </label>
             </div>
-            <div class="item-info">
-              <div class="item-name-row">
-                <span class="item-name">{{ entry.item.name }}</span>
-                @if (isSnooze(entry.item.id)) {
-                  <span class="badge badge-info"><i class="fas fa-bell-slash"></i> Snoozed</span>
-                } @else {
-                  <span class="badge {{ getStatusBadge(entry.status, entry.days).cssClass }}">
-                    {{ getStatusBadge(entry.status, entry.days).label }}
-                  </span>
-                }
-              </div>
-              <div class="item-meta">
-                {{ entry.item.username }} · Expires {{ getExpiryDate(entry.item) }}
-              </div>
-            </div>
-            <div class="item-actions">
-              <button class="btn btn-secondary btn-sm" title="Mark as updated">
-                <i class="fas fa-arrows-rotate"></i> Update
-              </button>
-              <button class="btn-icon" title="Snooze" (click)="snoozeItem(entry.item.id)">
-                <i class="fas fa-ellipsis-h"></i>
-              </button>
-            </div>
-          </div>
-        }
+          }
+        </div>
+      </div>
+    </div>
+  }
 
-        @if (displayedItems().length === 0) {
+  <!-- ══════════════════════════════════════════════════════════════
+       TAB 2 – Policy Dashboard
+  ══════════════════════════════════════════════════════════════ -->
+  @if (mainTab() === 'policies') {
+
+    <div class="page-header">
+      <div class="page-title">
+        <h1>Policy Dashboard</h1>
+        <p>Automatically flag credentials that violate rotation policies</p>
+      </div>
+      <div class="header-actions">
+        <button class="btn btn-primary btn-sm" (click)="openAddPolicy()">
+          <i class="fas fa-plus"></i> New Policy
+        </button>
+      </div>
+    </div>
+
+    <!-- Policy summary row -->
+    <div class="policy-summary-row">
+      <div class="policy-stat-card">
+        <div class="policy-stat-value">{{ policies().length }}</div>
+        <div class="policy-stat-label">Total Policies</div>
+      </div>
+      <div class="policy-stat-card active-card">
+        <div class="policy-stat-value">{{ enabledPolicies().length }}</div>
+        <div class="policy-stat-label">Active</div>
+      </div>
+      <div class="policy-stat-card violations-card">
+        <div class="policy-stat-value">{{ totalViolations() }}</div>
+        <div class="policy-stat-label">Violations</div>
+      </div>
+    </div>
+
+    <!-- Policy list + detail two-column layout -->
+    <div class="policy-layout">
+
+      <!-- Left: Policy list -->
+      <div class="policy-list">
+        @if (loadingPolicies()) {
+          <div class="loading-state">
+            <i class="fas fa-spinner fa-spin"></i> Loading policies…
+          </div>
+        } @else if (policies().length === 0) {
           <div class="empty-state">
-            <i class="fas fa-circle-check empty-icon"></i>
-            <p>No items in this category</p>
+            <i class="fas fa-shield-halved empty-icon"></i>
+            <p>No policies yet</p>
+            <button class="btn btn-primary btn-sm" (click)="openAddPolicy()">Create your first policy</button>
+          </div>
+        } @else {
+          @for (result of policyResults(); track result.policy.id) {
+            <div class="policy-card" [class.selected]="selectedPolicy() === result.policy.id"
+                 (click)="selectedPolicy.set(result.policy.id === selectedPolicy() ? null : result.policy.id)">
+              <div class="policy-card-header">
+                <div class="policy-card-left">
+                  <div class="policy-enabled-dot" [class.enabled]="result.policy.enabled"></div>
+                  <div class="policy-card-info">
+                    <div class="policy-card-name">{{ result.policy.name }}</div>
+                    <div class="policy-card-desc">{{ result.policy.description || ('Passwords older than ' + result.policy.thresholdDays + ' days') }}</div>
+                  </div>
+                </div>
+                <div class="policy-card-right">
+                  @if (result.flaggedItems.length > 0) {
+                    <span class="policy-violation-badge">{{ result.flaggedItems.length }}</span>
+                  } @else {
+                    <span class="policy-ok-badge"><i class="fas fa-check"></i></span>
+                  }
+                  <label class="toggle" title="{{ result.policy.enabled ? 'Disable policy' : 'Enable policy' }}"
+                         (click)="$event.stopPropagation()">
+                    <input type="checkbox" [checked]="result.policy.enabled" (change)="togglePolicy(result.policy.id)" />
+                    <span class="slider"></span>
+                  </label>
+                </div>
+              </div>
+              <div class="policy-card-meta">
+                <span class="policy-meta-pill">
+                  <i class="fas fa-rotate"></i> {{ result.policy.thresholdDays }}d rotation
+                </span>
+                @for (type of result.policy.itemTypes; track type) {
+                  <span class="policy-meta-pill">{{ type }}</span>
+                }
+                <span class="policy-meta-pill">
+                  <i class="fas fa-bell"></i> {{ result.policy.notifyDaysBefore }}d notice
+                </span>
+              </div>
+              <div class="policy-card-actions" (click)="$event.stopPropagation()">
+                <button class="btn-link" (click)="openEditPolicy(result.policy)">
+                  <i class="fas fa-pen"></i> Edit
+                </button>
+                <button class="btn-link btn-link-danger" (click)="deletePolicy(result.policy.id)">
+                  <i class="fas fa-trash"></i> Delete
+                </button>
+              </div>
+            </div>
+          }
+        }
+      </div>
+
+      <!-- Right: flagged items for selected policy -->
+      <div class="policy-detail">
+        @if (selectedPolicyResult(); as result) {
+          <div class="policy-detail-header">
+            <h3>{{ result.policy.name }}</h3>
+            <p class="policy-detail-desc">
+              Credentials not updated in the last {{ result.policy.thresholdDays }} days
+            </p>
+          </div>
+
+          @if (result.flaggedItems.length === 0) {
+            <div class="empty-state">
+              <i class="fas fa-circle-check empty-icon" style="color:var(--accent-green)"></i>
+              <p>No violations — all credentials are within policy</p>
+            </div>
+          } @else {
+            <div class="policy-items-list">
+              @for (item of result.flaggedItems; track item.id) {
+                <div class="policy-item-row">
+                  <div class="item-avatar-sm">{{ item.name[0]?.toUpperCase() }}</div>
+                  <div class="policy-item-info">
+                    <div class="policy-item-name">{{ item.name }}</div>
+                    <div class="policy-item-meta">
+                      {{ item.username ?? item.type }}
+                      · Last updated {{ getLastModified(item) }}
+                    </div>
+                  </div>
+                  <span class="policy-stale-badge">{{ getDaysStale(item) }}d stale</span>
+                </div>
+              }
+            </div>
+          }
+        } @else {
+          <div class="policy-detail-empty">
+            <i class="fas fa-hand-pointer" style="font-size:32px;color:var(--text-muted);margin-bottom:12px"></i>
+            <p style="color:var(--text-muted)">Select a policy to see violations</p>
           </div>
         }
       </div>
     </div>
+  }
 
-    <!-- Right: Reminder Rules -->
-    <div class="reminder-rules card">
-      <h3>Reminder Rules</h3>
-      <p class="rules-desc">Configure when you want to be notified about expiring passwords</p>
-      <div class="rules-list">
-        @for (rule of [
-          { label: 'Notify 30 days before expiry', active: true },
-          { label: 'Notify 7 days before expiry', active: true },
-          { label: 'Notify on expiry date', active: true },
-          { label: 'Notify daily for expired items', active: true }
-        ]; track rule.label) {
-          <div class="rule-row">
-            <i class="fas fa-bell rule-icon"></i>
-            <span class="rule-label">{{ rule.label }}</span>
-            <label class="toggle">
-              <input type="checkbox" [checked]="rule.active" />
-              <span class="slider"></span>
-            </label>
-            <span class="badge" [class]="rule.active ? 'badge-success' : 'badge-count'">
-              {{ rule.active ? 'Active' : 'Inactive' }}
-            </span>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     Policy Editor Modal
+═══════════════════════════════════════════════════════════════ -->
+@if (editingPolicy()) {
+  <div class="overlay-backdrop" (click)="closeEditPolicy()">
+    <div class="modal policy-modal" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <div class="modal-title">
+          <i class="fas fa-shield-halved"></i>
+          {{ editingPolicy()!.id ? 'Edit Policy' : 'New Policy' }}
+        </div>
+        <button class="btn-icon" (click)="closeEditPolicy()"><i class="fas fa-xmark"></i></button>
+      </div>
+
+      <div class="modal-body">
+        <div class="form-row">
+          <label class="form-label">Policy Name</label>
+          <input class="form-input" placeholder="e.g. 90-Day Rotation"
+                 [ngModel]="editPolicyName()" (ngModelChange)="editPolicyName.set($event)" />
+        </div>
+        <div class="form-row">
+          <label class="form-label">Description <span class="form-optional">(optional)</span></label>
+          <input class="form-input" placeholder="What does this policy enforce?"
+                 [ngModel]="editPolicyDesc()" (ngModelChange)="editPolicyDesc.set($event)" />
+        </div>
+        <div class="form-row">
+          <label class="form-label">Rotation threshold (days)</label>
+          <input class="form-input form-input-number" type="number" min="1" max="3650"
+                 [ngModel]="editPolicyDays()" (ngModelChange)="editPolicyDays.set(+$event)" />
+          <p class="form-hint">Items not updated within this many days will be flagged.</p>
+        </div>
+        <div class="form-row">
+          <label class="form-label">Notify N days before threshold</label>
+          <input class="form-input form-input-number" type="number" min="0" max="365"
+                 [ngModel]="editPolicyNotifyDays()" (ngModelChange)="editPolicyNotifyDays.set(+$event)" />
+        </div>
+        <div class="form-row">
+          <label class="form-label">Apply to item types</label>
+          <div class="type-toggle-row">
+            @for (type of ITEM_TYPES; track type) {
+              <button class="type-toggle-btn" [class.active]="editPolicyTypes().includes(type)" (click)="toggleEditType(type)">
+                {{ type }}
+              </button>
+            }
           </div>
-        }
+        </div>
+        <div class="form-row form-row-inline">
+          <label class="form-label">Enabled</label>
+          <label class="toggle">
+            <input type="checkbox" [checked]="editPolicyEnabled()" (change)="editPolicyEnabled.update(v => !v)" />
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-ghost" (click)="closeEditPolicy()" [disabled]="savingPolicies()">Cancel</button>
+        <button class="btn btn-primary" (click)="savePolicy()" [disabled]="savingPolicies()">
+          @if (savingPolicies()) {
+            <i class="fas fa-spinner fa-spin"></i> Saving…
+          } @else {
+            <i class="fas fa-floppy-disk"></i> Save Policy
+          }
+        </button>
       </div>
     </div>
   </div>
-</div>
+}

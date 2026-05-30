@@ -4,7 +4,7 @@
 
 ### A power-user companion app built on top of Bitwarden.
 
-**Tags · Auto-Type · Smart Views · Expiry Reminders · Quick Launcher · Automated Backups**
+**Tags · Multi-Tag Filtering · Auto-Type · Smart Views · Expiry Policies · Quick Launcher · Multi-Account · Automated Backups**
 
 [![Electron](https://img.shields.io/badge/Electron-42-47848F?style=flat-square&logo=electron&logoColor=white)](https://electronjs.org)
 [![Angular](https://img.shields.io/badge/Angular-21-DD0031?style=flat-square&logo=angular&logoColor=white)](https://angular.dev)
@@ -32,12 +32,15 @@ Everything DockWarden does uses the **official Bitwarden CLI** under the hood. Y
 | Feature | 1Password | Bitwarden (native) | DockWarden + Bitwarden |
 |---|:---:|:---:|:---:|
 | Tag / label system | ✅ | ❌ | ✅ |
+| **Multi-tag simultaneous filtering** | ✅ | ❌ | ✅ |
 | Auto-Type into native apps | ✅ | ❌ | ✅ |
 | Global quick-search launcher | ✅ | ❌ | ✅ |
 | Auto-select top search result | ✅ | ❌ | ✅ |
 | Click any field box to copy | ✅ | ❌ | ✅ |
 | Smart filters / saved searches | ✅ | ❌ | ✅ |
 | Password expiry alerts | ✅ | ❌ | ✅ |
+| **Policy-based expiry (e.g. "90-day rotation")** | ✅ | ❌ | ✅ |
+| **Multi-account switching with color coding** | ✅ | ❌ | ✅ |
 | Scheduled encrypted backups | ❌ | ❌ | ✅ |
 | Open source | ❌ | ✅ | ✅ |
 | Self-hostable vault | ❌ | ✅ | ✅ |
@@ -49,14 +52,17 @@ Everything DockWarden does uses the **official Bitwarden CLI** under the hood. Y
 
 ## ✨ Features
 
-### 🏷️ Tag & Label Manager
+### 🏷️ Tag & Label Manager with Multi-Tag Filtering
 
 Bitwarden's folder system is great for broad organisation, but power users often want to cross-reference items with multiple labels. DockWarden adds a **multi-tag system** stored transparently in custom fields (`_dw_tags`), so your tags are preserved in your Bitwarden vault regardless of what app you use to access them.
 
 - **Bulk editor** — select multiple items, apply or remove tags in one action
-- **Tag cloud sidebar** — click any tag to instantly filter the item list
+- **Tag cloud sidebar** — click any tag to instantly filter the item list; **click a second tag to add it to the filter**
+- **AND / OR mode toggle** — filter to items that have ALL selected tags (AND) or ANY of them (OR)
 - **Smart tag suggestions** — see existing tags as you type
 - **Merge & rename** — combine duplicate tags across your entire vault
+
+The **Labels/Tags feature request** has 267 replies and over 62,000 views on the Bitwarden community forum — one of the most-requested features ever. Multi-tag filtering lets you finally slice your vault the way power users have always wanted.
 
 ![Tag Manager bulk editor](docs/screenshots/tag-manager.png)
 
@@ -114,16 +120,40 @@ Save complex filter combinations as named "Smart Views" that act like dynamic fo
 
 ---
 
-### ⏰ Password Expiry Reminders
+### ⏰ Password Expiry Reminders & Rotation Policies
 
-DockWarden stores expiry dates in `_dw_expires` custom fields and fires **OS desktop notifications** on a configurable schedule.
+DockWarden goes beyond simple expiry date fields — it introduces **policy-based credential management** that proactively flags stale passwords even if you haven't set a per-item date.
 
+#### Per-Item Expiry Tracker
 - **Dashboard** — grouped view: Expired · Expiring This Week · Expiring This Month
 - **System tray notifications** — 30, 7, and 1 day before expiry
 - **Configurable reminder rules** — adjust lead times per item type
 - Edit expiry dates inline in the item detail panel
 
+#### Policy Dashboard *(new)*
+The community specifically asked for **policy-based expiry** — e.g., "flag any password older than 90 days as stale" — rather than relying solely on per-item dates. DockWarden's Policy Dashboard delivers exactly this.
+
+- **Create rotation policies** — e.g. "90-Day Rotation" or "Annual Review"
+- Each policy specifies: threshold (days since last modified), item types to check, and advance notification window
+- **Violation dashboard** — see every credential that violates each active policy, sorted by staleness
+- **AND/OR item type scope** — apply a policy to logins only, or cards + logins together
+- Policies are stored locally; vault items are evaluated in memory — nothing extra written to Bitwarden
+- Enable / disable policies with a single toggle
+
 ![Password Expiry dashboard](docs/screenshots/expiry-dashboard.png)
+
+---
+
+### 👤 Multi-Account Switching
+
+Many users have both a personal and a work Bitwarden account. DockWarden makes switching between them frictionless, with **visual color coding** so you always know which vault you're working in.
+
+- Accounts are automatically saved as profiles on first login
+- **Color-coded sidebar header** — each account has a distinct accent color shown in the brand logo and sidebar
+- **Account switcher dropdown** — click the DockWarden logo in the sidebar to see all saved profiles
+- Switching accounts locks the current vault and pre-fills the email on the unlock screen — just enter your password
+- Manage and remove profiles from **Settings → Account Profiles**
+- Works with personal accounts, business accounts, and self-hosted Bitwarden servers
 
 ---
 
@@ -333,10 +363,13 @@ export class VaultService {
 |---|---|---|
 | ✅ Foundation | Electron scaffold, IPC surface, vault browser, tray | **Shipped** |
 | ✅ Tag Manager | `_dw_tags` read/write, multi-tag, bulk editor, tag sidebar | **Shipped** |
+| ✅ Multi-Tag Filtering | AND/OR filter bar, tag picker, simultaneous multi-tag filtering | **Shipped** |
 | ✅ Quick Launcher | Global hotkey, multi-monitor floating window, fuzzy search | **Shipped** |
 | ✅ Auto-Type | Global hotkey, picker window, PowerShell keystroke injection (Win) | **Shipped** |
 | ✅ Smart Views | Filter builder, AND/OR, sidebar pinning, dynamic counts | **Shipped** |
 | ✅ Expiry System | `_dw_expires` field, expiry dashboard, OS notifications | **Shipped** |
+| ✅ Expiry Policies | Policy-based "90-day rotation" violations dashboard, per-policy items | **Shipped** |
+| ✅ Multi-Account Switching | Color-coded profiles, sidebar switcher, Settings manager | **Shipped** |
 | ✅ Encrypted Backup | `bw export` cron, local/S3/Backblaze, retention, history | **Shipped** |
 | ✅ Custom CSS | Live-preview CSS editor, variable reference, presets | **Shipped** |
 | ✅ Click-to-Copy Fields | Click any field box to copy; green flash confirmation | **Shipped** |

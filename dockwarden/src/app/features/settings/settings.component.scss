@@ -527,3 +527,64 @@
     &:hover { text-decoration: underline; }
   }
 }
+
+
+// ─── Account Profiles ─────────────────────────────────────────────────────────
+.settings-section-full {
+  margin: 0 0 24px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.account-profile-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.account-profile-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  transition: border-color var(--transition);
+
+  &.is-active { border-color: var(--accent-blue); background: var(--bg-selected); }
+}
+
+.account-profile-color {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.account-profile-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  .account-profile-name { font-size: 13px; font-weight: 600; }
+  .account-profile-email { font-size: 12px; color: var(--text-secondary); }
+  .account-profile-server { font-size: 11px; color: var(--text-muted); }
+}
+
+.account-profile-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.account-profile-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 32px 16px;
+  color: var(--text-muted);
+  font-size: 13px;
+  text-align: center;
+}

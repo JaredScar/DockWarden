@@ -15,6 +15,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     unlock: (password) => ipcRenderer.invoke('vault:unlock', { password }),
     lock: () => ipcRenderer.invoke('vault:lock'),
     logout: () => ipcRenderer.invoke('vault:logout'),
+    getExpiryPolicies: () => ipcRenderer.invoke('vault:get-expiry-policies'),
+    setExpiryPolicies: (policies) => ipcRenderer.invoke('vault:set-expiry-policies', { policies }),
   },
   autotype: {
     send: (username, password, pressEnter) => ipcRenderer.invoke('autotype:send', { username, password, pressEnter }),
@@ -33,6 +35,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
   backup: {
     runNow: () => ipcRenderer.invoke('backup:run-now'),
     getHistory: () => ipcRenderer.invoke('backup:get-history'),
+  },
+  account: {
+    getProfiles: () => ipcRenderer.invoke('account:get-profiles'),
+    addProfile: (profile) => ipcRenderer.invoke('account:add-profile', { profile }),
+    updateProfile: (id, patch) => ipcRenderer.invoke('account:update-profile', { id, patch }),
+    removeProfile: (id) => ipcRenderer.invoke('account:remove-profile', { id }),
+    getActive: () => ipcRenderer.invoke('account:get-active'),
+    setActive: (id) => ipcRenderer.invoke('account:set-active', { id }),
+    switch: (id) => ipcRenderer.invoke('account:switch', { id }),
   },
   app: {
     getStore: (key) => ipcRenderer.invoke('app:get-store', key),

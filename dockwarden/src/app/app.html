@@ -2,17 +2,43 @@
   <div class="app-shell">
     <!-- Sidebar -->
     <aside class="sidebar">
-      <!-- Brand -->
-      <div class="sidebar-brand">
-        <div class="brand-logo">
+      <!-- Brand / Account Switcher -->
+      <div class="sidebar-brand" (click)="toggleAccountSwitcher()" [class.open]="showAccountSwitcher()" role="button" tabindex="0">
+        <div class="brand-logo" [style.background]="activeAccount() ? activeAccount()!.color : 'linear-gradient(135deg, #2f81f7, #a371f7)'">
           <i class="fas fa-shield-halved brand-icon"></i>
         </div>
         <div class="brand-info">
           <span class="brand-name">DockWarden</span>
-          <span class="brand-sub">My Vault</span>
+          <span class="brand-sub">{{ activeAccount()?.name ?? 'My Vault' }}</span>
         </div>
-        <button class="btn-icon" style="margin-left: auto"><i class="fas fa-chevron-down"></i></button>
+        <i class="fas fa-chevron-down brand-chevron" [class.rotated]="showAccountSwitcher()" style="margin-left:auto;font-size:11px;color:var(--text-muted)"></i>
       </div>
+
+      <!-- Account dropdown -->
+      @if (showAccountSwitcher()) {
+        <div class="account-dropdown">
+          @for (account of accounts(); track account.id) {
+            <button class="account-item" [class.active]="account.id === activeAccountId()" (click)="switchAccount(account)">
+              <span class="account-color-dot" [style.background]="account.color"></span>
+              <div class="account-item-info">
+                <span class="account-item-name">{{ account.name }}</span>
+                <span class="account-item-email">{{ account.email }}</span>
+              </div>
+              @if (account.id === activeAccountId()) {
+                <i class="fas fa-check" style="color:var(--accent-green);font-size:12px;margin-left:auto"></i>
+              }
+            </button>
+          }
+          @if (accounts().length === 0) {
+            <div class="account-dropdown-empty">No accounts saved</div>
+          }
+          <div class="account-dropdown-divider"></div>
+          <a routerLink="/settings" class="account-item account-item-settings" (click)="showAccountSwitcher.set(false)">
+            <i class="fas fa-user-plus" style="font-size:13px;color:var(--text-muted)"></i>
+            <span>Manage Accounts</span>
+          </a>
+        </div>
+      }
 
       <!-- Quick Actions -->
       <div class="sidebar-quick-actions">
@@ -64,12 +90,13 @@
         <div class="section-label">TAGS</div>
         @for (tag of allTags(); track tag.name) {
           <a [routerLink]="['/items']"
-             [queryParams]="{ tag: tag.name }"
+             [queryParams]="{ tags: tag.name }"
              routerLinkActive="active"
              [routerLinkActiveOptions]="{ exact: true }"
              class="nav-item nav-item-sm">
             <span class="tag-dot" [style.background]="tag.color"></span>
             <span class="nav-label">{{ tag.name }}</span>
+            <span class="nav-count">{{ tag.itemCount }}</span>
           </a>
         }
       </div>

@@ -441,6 +441,20 @@ function setupIpcHandlers() {
           store.set('bwEmail', email);
           if (serverUrl) store.set('bwServerUrl', serverUrl);
           pending2FA = null;
+          // Auto-save account profile on first login
+          const _profiles = store.get('accountProfiles', []);
+          const _srv = serverUrl || 'https://bitwarden.com';
+          const _existing = _profiles.find(p => p.email === email && p.serverUrl === _srv);
+          if (!_existing) {
+            const _COLORS = ['#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#a855f7', '#06b6d4', '#ec4899', '#f97316'];
+            const _id = `acct-${Date.now()}`;
+            const _color = _COLORS[_profiles.length % _COLORS.length];
+            const _prof = { id: _id, name: email.split('@')[0] || email, email, serverUrl: _srv, color: _color };
+            store.set('accountProfiles', [..._profiles, _prof]);
+            store.set('activeAccountId', _id);
+          } else {
+            store.set('activeAccountId', _existing.id);
+          }
           settle({ success: true });
         } else {
           const msg = stderr + stdout;
@@ -890,6 +904,94 @@ function setupIpcHandlers() {
 
   ipcMain.handle('updater:install-and-relaunch', () => {
     autoUpdater.quitAndInstall();
+  });
+
+  // ─── Expiry Policies ──────────────────────────────────────────────────────────
+
+  const DEFAULT_EXPIRY_POLICIES = [
+    {
+      id: 'policy-90day',
+      name: '90-Day Rotation',
+      description: 'Flag login passwords not changed in 90 days',
+      type: 'password-age',
+      thresholdDays: 90,
+      itemTypes: ['login'],
+      enabled: true,
+      notifyDaysBefore: 14,
+    },
+    {
+      id: 'policy-1year',
+      name: 'Annual Review',
+      description: 'Flag all credentials not updated in 365 days',
+      type: 'password-age',
+      thresholdDays: 365,
+      itemTypes: ['login', 'card'],
+      enabled: false,
+      notifyDaysBefore: 30,
+    },
+  ];
+
+  ipcMain.handle('vault:get-expiry-policies', async () => {
+    return store.get('expiryPolicies', DEFAULT_EXPIRY_POLICIES);
+  });
+
+  ipcMain.handle('vault:set-expiry-policies', async (_, { policies }) => {
+    store.set('expiryPolicies', policies);
+    return true;
+  });
+
+  // ─── Account Profiles ─────────────────────────────────────────────────────────
+
+  const ACCOUNT_COLORS = ['#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#a855f7', '#06b6d4', '#ec4899', '#f97316'];
+
+  ipcMain.handle('account:get-profiles', async () => {
+    return store.get('accountProfiles', []);
+  });
+
+  ipcMain.handle('account:add-profile', async (_, { profile }) => {
+    const profiles = store.get('accountProfiles', []);
+    const id = `acct-${Date.now()}`;
+    const color = ACCOUNT_COLORS[profiles.length % ACCOUNT_COLORS.length];
+    const newProfile = { ...profile, id, color };
+    // Avoid duplicates by email + server
+    const filtered = profiles.filter(p => !(p.email === newProfile.email && p.serverUrl === newProfile.serverUrl));
+    store.set('accountProfiles', [...filtered, newProfile]);
+    return newProfile;
+  });
+
+  ipcMain.handle('account:update-profile', async (_, { id, patch }) => {
+    const profiles = store.get('accountProfiles', []);
+    store.set('accountProfiles', profiles.map(p => p.id === id ? { ...p, ...patch } : p));
+    return true;
+  });
+
+  ipcMain.handle('account:remove-profile', async (_, { id }) => {
+    const profiles = store.get('accountProfiles', []);
+    store.set('accountProfiles', profiles.filter(p => p.id !== id));
+    if (store.get('activeAccountId') === id) store.set('activeAccountId', null);
+    return true;
+  });
+
+  ipcMain.handle('account:get-active', async () => {
+    return store.get('activeAccountId', null);
+  });
+
+  ipcMain.handle('account:set-active', async (_, { id }) => {
+    store.set('activeAccountId', id);
+    return true;
+  });
+
+  ipcMain.handle('account:switch', async (_, { id }) => {
+    const profiles = store.get('accountProfiles', []);
+    const profile = profiles.find(p => p.id === id);
+    if (!profile) return { success: false, error: 'Profile not found' };
+    // Lock vault, set new email/server, redirect to unlock so the stored config is picked up
+    bwSession = null;
+    store.set('bwEmail', profile.email);
+    if (profile.serverUrl) store.set('bwServerUrl', profile.serverUrl);
+    store.set('activeAccountId', id);
+    mainWindow?.webContents.send('navigate', '/unlock');
+    return { success: true };
   });
 }
 

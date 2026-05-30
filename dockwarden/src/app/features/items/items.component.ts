@@ -1,6 +1,6 @@
 import { Component, inject, signal, computed, effect, ChangeDetectionStrategy, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ActivatedRoute, Params } from '@angular/router';
+import { ActivatedRoute, Params, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { Subscription } from 'rxjs';
 import { VaultService } from '../../core/vault.service';
@@ -20,6 +20,7 @@ export class ItemsComponent implements OnInit, OnDestroy {
   readonly vaultService = inject(VaultService);
   private readonly smartViewService = inject(SmartViewService);
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
   private paramSub?: Subscription;
   private _editHandler?: () => void;
 
@@ -27,9 +28,27 @@ export class ItemsComponent implements OnInit, OnDestroy {
   readonly searchQuery = signal('');
   readonly showPassword = signal(false);
   readonly copiedField = signal<string | null>(null);
+  readonly showTagPicker = signal(false);
 
   // Live query-params signal — updated whenever the route changes
   readonly activeParams = signal<Params>({});
+
+  // ── Multi-tag filter state ─────────────────────────────────────────────────
+
+  /** All tags currently applied as a filter (supports both ?tag=x and ?tags=x,y) */
+  readonly activeTags = computed(() => {
+    const params = this.activeParams();
+    const multi = params['tags'] as string | undefined;
+    const single = params['tag'] as string | undefined;
+    if (multi) return multi.split(',').map(t => t.trim()).filter(Boolean);
+    if (single) return [single];
+    return [] as string[];
+  });
+
+  /** 'and' = item must have ALL selected tags; 'any' = item needs just one */
+  readonly tagMode = computed<'and' | 'any'>(() =>
+    this.activeParams()['tagMode'] === 'any' ? 'any' : 'and'
+  );
 
   // ── Edit-mode state ────────────────────────────────────────────────────────
   readonly editing = signal(false);
@@ -79,8 +98,12 @@ export class ItemsComponent implements OnInit, OnDestroy {
       base = base.filter(i => i.favorite);
     } else if (params['noFolder']) {
       base = base.filter(i => !i.folderId);
-    } else if (params['tag']) {
-      base = base.filter(i => i.tags.includes(params['tag']));
+    } else if (params['tag'] || params['tags']) {
+      const tags = this.activeTags();
+      const mode = this.tagMode();
+      base = mode === 'any'
+        ? base.filter(i => tags.some(t => i.tags.includes(t)))
+        : base.filter(i => tags.every(t => i.tags.includes(t)));
     } else if (params['folder']) {
       base = base.filter(i => i.folderId === params['folder']);
     }
@@ -98,6 +121,10 @@ export class ItemsComponent implements OnInit, OnDestroy {
     }
     if (params['favorites']) return 'Favorites';
     if (params['noFolder']) return 'No Folder';
+    if (params['tags']) {
+      const tags = (params['tags'] as string).split(',').map(t => t.trim()).filter(Boolean);
+      return tags.length === 1 ? `#${tags[0]}` : `${tags.length} Tags`;
+    }
     if (params['tag']) return `#${params['tag']}`;
     if (params['folder']) {
       const folder = this.vaultService.folders().find(f => f.id === params['folder']);
@@ -122,8 +149,39 @@ export class ItemsComponent implements OnInit, OnDestroy {
     return Array.from(groups.entries()).sort(([a], [b]) => a.localeCompare(b));
   });
 
+  // ── Multi-tag navigation ───────────────────────────────────────────────────
+
+  toggleTagFilter(tag: string): void {
+    const current = this.activeTags();
+    const next = current.includes(tag)
+      ? current.filter(t => t !== tag)
+      : [...current, tag];
+    this._navigateTags(next, this.tagMode());
+  }
+
+  removeTagFilter(tag: string): void {
+    this._navigateTags(this.activeTags().filter(t => t !== tag), this.tagMode());
+  }
+
+  clearTagFilter(): void {
+    this.showTagPicker.set(false);
+    this.router.navigate(['/items']);
+  }
+
+  toggleTagMode(): void {
+    const mode = this.tagMode() === 'and' ? 'any' : 'and';
+    this._navigateTags(this.activeTags(), mode);
+  }
+
+  private _navigateTags(tags: string[], mode: 'and' | 'any'): void {
+    if (tags.length === 0) { this.router.navigate(['/items']); return; }
+    const qp = tags.length === 1 && mode === 'and'
+      ? { tags: tags[0] }
+      : { tags: tags.join(','), tagMode: mode };
+    this.router.navigate(['/items'], { queryParams: qp });
+  }
+
   async ngOnInit(): Promise<void> {
-    // Seed with current params immediately, then track all future changes
     this.activeParams.set(this.route.snapshot.queryParams);
     this.paramSub = this.route.queryParams.subscribe(params => {
       this.activeParams.set(params);
