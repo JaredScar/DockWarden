@@ -637,6 +637,21 @@ function setupIpcHandlers() {
       await runBw(['sync', '--session', bwSession]);
       const items = await runBwJson(['list', 'items', '--session', bwSession]);
       itemsCache = items.map(mapBwItem);
+
+      // Auto-save a lightweight metadata snapshot so users can diff vault changes over time
+      const snaps = store.get('vaultSnapshots', []);
+      const newSnap = {
+        id: `snap-${Date.now()}`,
+        label: 'Auto (sync)',
+        timestamp: new Date().toISOString(),
+        itemCount: itemsCache.length,
+        items: itemsCache.map(i => ({
+          id: i.id, name: i.name, type: i.type,
+          lastModified: i.lastModified, folderId: i.folderId || null,
+        })),
+      };
+      store.set('vaultSnapshots', [newSnap, ...snaps].slice(0, 50));
+
       return {
         success: true,
         itemCount: items.length,
@@ -992,6 +1007,102 @@ function setupIpcHandlers() {
     store.set('activeAccountId', id);
     mainWindow?.webContents.send('navigate', '/unlock');
     return { success: true };
+  });
+
+  // ─── Generic Settings ─────────────────────────────────────────────────────────
+
+  ipcMain.handle('vault:get-setting', async (_, { key, defaultValue }) => {
+    return store.get(key, defaultValue ?? null);
+  });
+
+  ipcMain.handle('vault:set-setting', async (_, { key, value }) => {
+    store.set(key, value);
+    return true;
+  });
+
+  // ─── Vault Snapshots ──────────────────────────────────────────────────────────
+
+  ipcMain.handle('snapshot:get-all', async () => {
+    const snaps = store.get('vaultSnapshots', []);
+    // Return metadata only (no items array) for the list view
+    return snaps.map(s => ({ id: s.id, label: s.label, timestamp: s.timestamp, itemCount: s.itemCount }));
+  });
+
+  ipcMain.handle('snapshot:save-manual', async (_, { label }) => {
+    if (!bwSession || itemsCache.length === 0) return { success: false, error: 'Vault is locked or empty' };
+    const snaps = store.get('vaultSnapshots', []);
+    const newSnap = {
+      id: `snap-${Date.now()}`,
+      label: label || 'Manual snapshot',
+      timestamp: new Date().toISOString(),
+      itemCount: itemsCache.length,
+      items: itemsCache.map(i => ({
+        id: i.id, name: i.name, type: i.type,
+        lastModified: i.lastModified, folderId: i.folderId || null,
+      })),
+    };
+    store.set('vaultSnapshots', [newSnap, ...snaps].slice(0, 50));
+    return { success: true, snapshot: { id: newSnap.id, label: newSnap.label, timestamp: newSnap.timestamp, itemCount: newSnap.itemCount } };
+  });
+
+  ipcMain.handle('snapshot:delete', async (_, { id }) => {
+    const snaps = store.get('vaultSnapshots', []);
+    store.set('vaultSnapshots', snaps.filter(s => s.id !== id));
+    return true;
+  });
+
+  ipcMain.handle('snapshot:diff', async (_, { idA, idB }) => {
+    const snaps = store.get('vaultSnapshots', []);
+    const snapA = snaps.find(s => s.id === idA);
+    const snapB = snaps.find(s => s.id === idB);
+    if (!snapA || !snapB) return { success: false, error: 'Snapshot not found' };
+
+    const aMap = new Map(snapA.items.map(i => [i.id, i]));
+    const bMap = new Map(snapB.items.map(i => [i.id, i]));
+
+    const added = [];
+    const deleted = [];
+    const modified = [];
+    let unchanged = 0;
+
+    for (const [id, item] of bMap) {
+      if (!aMap.has(id)) added.push(item);
+    }
+    for (const [id, item] of aMap) {
+      if (!bMap.has(id)) deleted.push(item);
+    }
+    for (const [id, aItem] of aMap) {
+      const bItem = bMap.get(id);
+      if (bItem) {
+        if (aItem.lastModified !== bItem.lastModified || aItem.name !== bItem.name) {
+          modified.push({ before: aItem, after: bItem });
+        } else {
+          unchanged++;
+        }
+      }
+    }
+
+    return { success: true, diff: { added, deleted, modified, unchanged, snapA: { label: snapA.label, timestamp: snapA.timestamp }, snapB: { label: snapB.label, timestamp: snapB.timestamp } } };
+  });
+
+  // ─── Custom Icons ─────────────────────────────────────────────────────────────
+
+  ipcMain.handle('icon:get-all', async () => {
+    return store.get('customIcons', {});
+  });
+
+  ipcMain.handle('icon:set', async (_, { itemId, icon }) => {
+    const icons = store.get('customIcons', {});
+    icons[itemId] = icon;
+    store.set('customIcons', icons);
+    return true;
+  });
+
+  ipcMain.handle('icon:remove', async (_, { itemId }) => {
+    const icons = store.get('customIcons', {});
+    delete icons[itemId];
+    store.set('customIcons', icons);
+    return true;
   });
 }
 

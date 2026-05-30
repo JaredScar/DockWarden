@@ -17,6 +17,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     logout: () => ipcRenderer.invoke('vault:logout'),
     getExpiryPolicies: () => ipcRenderer.invoke('vault:get-expiry-policies'),
     setExpiryPolicies: (policies) => ipcRenderer.invoke('vault:set-expiry-policies', { policies }),
+    getSetting: (key, defaultValue) => ipcRenderer.invoke('vault:get-setting', { key, defaultValue }),
+    setSetting: (key, value) => ipcRenderer.invoke('vault:set-setting', { key, value }),
   },
   autotype: {
     send: (username, password, pressEnter) => ipcRenderer.invoke('autotype:send', { username, password, pressEnter }),
@@ -44,6 +46,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getActive: () => ipcRenderer.invoke('account:get-active'),
     setActive: (id) => ipcRenderer.invoke('account:set-active', { id }),
     switch: (id) => ipcRenderer.invoke('account:switch', { id }),
+  },
+  snapshot: {
+    getAll: () => ipcRenderer.invoke('snapshot:get-all'),
+    saveManual: (label) => ipcRenderer.invoke('snapshot:save-manual', { label }),
+    delete: (id) => ipcRenderer.invoke('snapshot:delete', { id }),
+    diff: (idA, idB) => ipcRenderer.invoke('snapshot:diff', { idA, idB }),
+  },
+  icon: {
+    getAll: () => ipcRenderer.invoke('icon:get-all'),
+    set: (itemId, icon) => ipcRenderer.invoke('icon:set', { itemId, icon }),
+    remove: (itemId) => ipcRenderer.invoke('icon:remove', { itemId }),
+    getSetting: (key, defaultValue) => ipcRenderer.invoke('vault:get-setting', { key, defaultValue }),
+    setSetting: (key, value) => ipcRenderer.invoke('vault:set-setting', { key, value }),
   },
   app: {
     getStore: (key) => ipcRenderer.invoke('app:get-store', key),

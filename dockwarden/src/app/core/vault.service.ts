@@ -30,6 +30,36 @@ export interface AccountProfile {
   color: string;
 }
 
+export interface VaultSnapshot {
+  id: string;
+  label: string;
+  timestamp: string;
+  itemCount: number;
+}
+
+export interface SnapshotItem {
+  id: string;
+  name: string;
+  type: string;
+  lastModified: string;
+  folderId: string | null;
+}
+
+export interface SnapshotDiff {
+  added: SnapshotItem[];
+  deleted: SnapshotItem[];
+  modified: { before: SnapshotItem; after: SnapshotItem }[];
+  unchanged: number;
+  snapA: { label: string; timestamp: string };
+  snapB: { label: string; timestamp: string };
+}
+
+export interface CustomIcon {
+  type: 'emoji' | 'color';
+  value: string;
+  bg?: string;
+}
+
 declare global {
   interface Window {
     electronAPI?: {
@@ -49,6 +79,8 @@ declare global {
         logout: () => Promise<{ success: boolean }>;
         getExpiryPolicies: () => Promise<ExpiryPolicy[]>;
         setExpiryPolicies: (policies: ExpiryPolicy[]) => Promise<boolean>;
+        getSetting: (key: string, defaultValue: unknown) => Promise<unknown>;
+        setSetting: (key: string, value: unknown) => Promise<boolean>;
       };
       autotype: {
         send: (username: string, password: string, pressEnter: boolean) => Promise<{ success: boolean; error?: string }>;
@@ -76,6 +108,17 @@ declare global {
         getActive: () => Promise<string | null>;
         setActive: (id: string) => Promise<boolean>;
         switch: (id: string) => Promise<{ success: boolean; error?: string }>;
+      };
+      snapshot: {
+        getAll: () => Promise<VaultSnapshot[]>;
+        saveManual: (label: string) => Promise<{ success: boolean; snapshot?: VaultSnapshot; error?: string }>;
+        delete: (id: string) => Promise<boolean>;
+        diff: (idA: string, idB: string) => Promise<{ success: boolean; diff?: SnapshotDiff; error?: string }>;
+      };
+      icon: {
+        getAll: () => Promise<Record<string, CustomIcon>>;
+        set: (itemId: string, icon: CustomIcon) => Promise<boolean>;
+        remove: (itemId: string) => Promise<boolean>;
       };
       app: {
         getStore: (key: string) => Promise<unknown>;
@@ -456,5 +499,44 @@ export class VaultService {
       this._items.set([]);
     }
     return result;
+  }
+
+  // ── Snapshots ──────────────────────────────────────────────────────────────
+
+  async getSnapshots(): Promise<VaultSnapshot[]> {
+    if (!window.electronAPI) return [];
+    return window.electronAPI.snapshot.getAll();
+  }
+
+  async saveSnapshot(label: string): Promise<{ success: boolean; snapshot?: VaultSnapshot; error?: string }> {
+    if (!window.electronAPI) return { success: false, error: 'Not in Electron' };
+    return window.electronAPI.snapshot.saveManual(label);
+  }
+
+  async deleteSnapshot(id: string): Promise<boolean> {
+    if (!window.electronAPI) return false;
+    return window.electronAPI.snapshot.delete(id);
+  }
+
+  async diffSnapshots(idA: string, idB: string): Promise<{ success: boolean; diff?: SnapshotDiff; error?: string }> {
+    if (!window.electronAPI) return { success: false, error: 'Not in Electron' };
+    return window.electronAPI.snapshot.diff(idA, idB);
+  }
+
+  // ── Custom Icons ───────────────────────────────────────────────────────────
+
+  async getCustomIcons(): Promise<Record<string, CustomIcon>> {
+    if (!window.electronAPI) return {};
+    return window.electronAPI.icon.getAll();
+  }
+
+  async setCustomIcon(itemId: string, icon: CustomIcon): Promise<boolean> {
+    if (!window.electronAPI) return false;
+    return window.electronAPI.icon.set(itemId, icon);
+  }
+
+  async removeCustomIcon(itemId: string): Promise<boolean> {
+    if (!window.electronAPI) return false;
+    return window.electronAPI.icon.remove(itemId);
   }
 }

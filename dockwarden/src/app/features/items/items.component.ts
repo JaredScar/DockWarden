@@ -3,10 +3,14 @@ import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Params, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { Subscription } from 'rxjs';
-import { VaultService } from '../../core/vault.service';
+import { VaultService, CustomIcon } from '../../core/vault.service';
 import { SmartViewService } from '../../core/smart-view.service';
+import { ClipboardService } from '../../core/clipboard.service';
 import { VaultItem } from '../../shared/models';
 import Fuse from 'fuse.js';
+
+const PRESET_EMOJIS = ['🔑','🏦','💳','📧','🛒','🏠','💼','🔒','🌐','📱','🖥️','⚙️','☁️','🎮','🎵','📚','🏥','✈️','🔐','💡'];
+const PRESET_COLORS = ['#ef4444','#f97316','#f59e0b','#22c55e','#14b8a6','#3b82f6','#8b5cf6','#ec4899'];
 
 @Component({
   selector: 'app-items',
@@ -18,6 +22,7 @@ import Fuse from 'fuse.js';
 })
 export class ItemsComponent implements OnInit, OnDestroy {
   readonly vaultService = inject(VaultService);
+  readonly clipboardService = inject(ClipboardService);
   private readonly smartViewService = inject(SmartViewService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
@@ -29,6 +34,12 @@ export class ItemsComponent implements OnInit, OnDestroy {
   readonly showPassword = signal(false);
   readonly copiedField = signal<string | null>(null);
   readonly showTagPicker = signal(false);
+
+  // Custom icons
+  readonly customIcons = signal<Record<string, CustomIcon>>({});
+  readonly iconPickerOpen = signal(false);
+  readonly presetEmojis = PRESET_EMOJIS;
+  readonly presetColors = PRESET_COLORS;
 
   // Live query-params signal — updated whenever the route changes
   readonly activeParams = signal<Params>({});
@@ -203,6 +214,10 @@ export class ItemsComponent implements OnInit, OnDestroy {
     });
     await this.vaultService.loadFolders();
 
+    // Load custom icons from local store
+    const icons = await this.vaultService.getCustomIcons();
+    this.customIcons.set(icons);
+
     // Ctrl+E global event from the app shell
     this._editHandler = () => { if (this.selectedItem()) this.startEdit(); };
     document.addEventListener('dw:start-edit', this._editHandler as EventListener);
@@ -304,9 +319,46 @@ export class ItemsComponent implements OnInit, OnDestroy {
   // ── Helpers ────────────────────────────────────────────────────────────────
 
   async copyToClipboard(text: string, field: string): Promise<void> {
-    await navigator.clipboard.writeText(text);
+    await this.clipboardService.copy(text, field);
     this.copiedField.set(field);
     setTimeout(() => this.copiedField.set(null), 2000);
+  }
+
+  // ── Custom icon management ─────────────────────────────────────────────────
+
+  getCustomIcon(itemId: string): CustomIcon | null {
+    return this.customIcons()[itemId] ?? null;
+  }
+
+  toggleIconPicker(): void {
+    this.iconPickerOpen.update(v => !v);
+  }
+
+  async pickEmoji(emoji: string): Promise<void> {
+    const item = this.selectedItem();
+    if (!item) return;
+    const icon: CustomIcon = { type: 'emoji', value: emoji };
+    await this.vaultService.setCustomIcon(item.id, icon);
+    this.customIcons.update(m => ({ ...m, [item.id]: icon }));
+    this.iconPickerOpen.set(false);
+  }
+
+  async pickColor(color: string): Promise<void> {
+    const item = this.selectedItem();
+    if (!item) return;
+    const initials = this.getInitials(item.name);
+    const icon: CustomIcon = { type: 'color', value: initials, bg: color };
+    await this.vaultService.setCustomIcon(item.id, icon);
+    this.customIcons.update(m => ({ ...m, [item.id]: icon }));
+    this.iconPickerOpen.set(false);
+  }
+
+  async resetIcon(): Promise<void> {
+    const item = this.selectedItem();
+    if (!item) return;
+    await this.vaultService.removeCustomIcon(item.id);
+    this.customIcons.update(m => { const copy = { ...m }; delete copy[item.id]; return copy; });
+    this.iconPickerOpen.set(false);
   }
 
   getFolderName(id: string | null): string {

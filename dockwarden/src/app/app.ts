@@ -3,6 +3,7 @@ import { RouterOutlet, RouterLink, RouterLinkActive, Router, NavigationEnd } fro
 import { FormsModule } from '@angular/forms';
 import { VaultService, AccountProfile } from './core/vault.service';
 import { SmartViewService } from './core/smart-view.service';
+import { ClipboardService } from './core/clipboard.service';
 import { CommonModule } from '@angular/common';
 import { filter } from 'rxjs/operators';
 
@@ -18,6 +19,7 @@ export class App implements OnInit, OnDestroy {
   private readonly vaultService = inject(VaultService);
   private readonly smartViewService = inject(SmartViewService);
   private readonly router = inject(Router);
+  readonly clipboardService = inject(ClipboardService);
   private _kbHandler?: (e: KeyboardEvent) => void;
 
   readonly stats = this.vaultService.stats;
@@ -170,6 +172,9 @@ export class App implements OnInit, OnDestroy {
       this.accounts.set(profiles);
       const activeId = await window.electronAPI.account.getActive();
       this.activeAccountId.set(activeId);
+
+      // Initialise clipboard auto-clear delay from persisted setting
+      await this.clipboardService.init();
     }
 
     this._kbHandler = (e: KeyboardEvent) => {

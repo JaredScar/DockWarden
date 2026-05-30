@@ -1,0 +1,82 @@
+<div class="totp-page">
+  <div class="totp-header">
+    <div class="totp-title-area">
+      <h1><i class="fas fa-shield-halved"></i> TOTP Codes</h1>
+      <p>Live two-factor authentication codes — click any card to copy</p>
+    </div>
+    <div class="totp-search-wrap">
+      <i class="fas fa-magnifying-glass"></i>
+      <input class="totp-search" placeholder="Filter entries…"
+             [value]="searchQuery()"
+             (input)="searchQuery.set($any($event.target).value)" />
+    </div>
+  </div>
+
+  @if (totpItems().length === 0) {
+    <div class="totp-empty">
+      <i class="fas fa-shield-halved totp-empty-icon"></i>
+      <p>No TOTP codes found in your vault</p>
+      <span>Add TOTP secrets to Bitwarden login items to see them here</span>
+    </div>
+  }
+
+  <div class="totp-grid">
+    @for (entry of filteredEntries(); track entry.item.id) {
+      <div class="totp-card"
+           [class.urgency-warn]="entry.urgency === 'warn'"
+           [class.urgency-critical]="entry.urgency === 'critical'"
+           [class.copied]="copiedId() === entry.item.id"
+           (click)="copyCode(entry)"
+           role="button"
+           [title]="'Click to copy ' + entry.item.name + ' TOTP'">
+
+        <!-- Countdown ring (SVG) -->
+        <div class="totp-ring-wrap">
+          <svg class="totp-ring" viewBox="0 0 36 36" width="40" height="40">
+            <circle class="totp-ring-track" cx="18" cy="18" r="14" fill="none" stroke-width="3"/>
+            <circle class="totp-ring-fill"
+                    cx="18" cy="18" r="14" fill="none" stroke-width="3"
+                    [style.stroke-dasharray]="arcCircumference"
+                    [style.stroke-dashoffset]="getArcStrokeDashoffset(entry)"
+                    transform="rotate(-90 18 18)" />
+          </svg>
+          <span class="totp-ring-secs">{{ entry.secondsLeft }}</span>
+        </div>
+
+        <!-- Item avatar -->
+        @if (getCustomIcon(entry.item.id); as ci) {
+          @if (ci.type === 'emoji') {
+            <div class="totp-avatar totp-avatar-emoji">{{ ci.value }}</div>
+          } @else {
+            <div class="totp-avatar" [style.background]="ci.bg">{{ ci.value }}</div>
+          }
+        } @else {
+          <div class="totp-avatar" [style.background]="getItemColor(entry.item)">
+            {{ getInitials(entry.item.name) }}
+          </div>
+        }
+
+        <!-- Info -->
+        <div class="totp-info">
+          <div class="totp-item-name">{{ entry.item.name }}</div>
+          @if (entry.item.username) {
+            <div class="totp-item-user">{{ entry.item.username }}</div>
+          }
+          <!-- Code display -->
+          <div class="totp-code">
+            @if (copiedId() === entry.item.id) {
+              <span class="totp-copied"><i class="fas fa-check"></i> Copied!</span>
+            } @else {
+              {{ formatCode(entry.code) }}
+            }
+          </div>
+        </div>
+
+        <!-- Copy hint -->
+        <div class="totp-copy-hint">
+          <i class="fas fa-copy"></i>
+        </div>
+      </div>
+    }
+  </div>
+</div>

@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { VaultService, AccountProfile } from '../../core/vault.service';
+import { ClipboardService } from '../../core/clipboard.service';
 import { App } from '../../app';
 
 @Component({
@@ -16,6 +17,7 @@ import { App } from '../../app';
 export class SettingsComponent implements OnInit, OnDestroy {
   private readonly vaultService = inject(VaultService);
   private readonly router = inject(Router);
+  readonly clipboardService = inject(ClipboardService);
 
   // ── BW connection ──────────────────────────────────────────────────────────
   readonly bwEmail = signal('');

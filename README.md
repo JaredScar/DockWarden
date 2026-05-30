@@ -4,7 +4,7 @@
 
 ### A power-user companion app built on top of Bitwarden.
 
-**Tags · Multi-Tag Filtering · Auto-Type · Smart Views · Expiry Policies · Quick Launcher · Multi-Account · Automated Backups**
+**Tags · Multi-Tag Filtering · Auto-Type · Smart Views · Expiry Policies · Quick Launcher · Multi-Account · Snapshot Diffing · Custom Icons · Clipboard Auto-Clear · TOTP Panel**
 
 [![Electron](https://img.shields.io/badge/Electron-42-47848F?style=flat-square&logo=electron&logoColor=white)](https://electronjs.org)
 [![Angular](https://img.shields.io/badge/Angular-21-DD0031?style=flat-square&logo=angular&logoColor=white)](https://angular.dev)
@@ -41,6 +41,10 @@ Everything DockWarden does uses the **official Bitwarden CLI** under the hood. Y
 | Password expiry alerts | ✅ | ❌ | ✅ |
 | **Policy-based expiry (e.g. "90-day rotation")** | ✅ | ❌ | ✅ |
 | **Multi-account switching with color coding** | ✅ | ❌ | ✅ |
+| **Vault snapshot diffing (audit trail)** | ❌ | ❌ | ✅ |
+| **Custom local icons / favicons (no CDN)** | ❌ | ❌ | ✅ |
+| **Clipboard auto-clear with toast countdown** | ✅ | ⚠️ (extension only) | ✅ |
+| **TOTP panel — all codes at a glance** | ✅ | ❌ | ✅ |
 | Scheduled encrypted backups | ❌ | ❌ | ✅ |
 | Open source | ❌ | ✅ | ✅ |
 | Self-hostable vault | ❌ | ✅ | ✅ |
@@ -168,6 +172,61 @@ DockWarden wraps `bw export --format encrypted_json` in a configurable cron job 
 - One-click restore verification
 
 ![Encrypted Backup page](docs/screenshots/backup.png)
+
+---
+
+### 🔍 Vault Snapshot Diffing
+
+DockWarden automatically snapshots your vault metadata every time you sync, giving you an **audit trail of changes** over time. You can also save manual snapshots at any moment.
+
+- Every vault sync **auto-saves a lightweight snapshot** (item names, types, last-modified timestamps)
+- **Save named snapshots** before a big change: "Before bulk delete", "Before sharing with team"
+- **Compare any two snapshots** side by side — Added, Deleted, Modified, and Unchanged items are clearly flagged in color
+- Stored locally (up to 50 snapshots) — **no external requests, fully private**
+- Found in **Backup → Snapshot Diff** tab
+
+> "These 5 items were added, 2 were modified, 1 was deleted since your last sync" — instantly visible.
+
+---
+
+### 🎨 Custom Icons / Favicons per Entry
+
+Bitwarden auto-fetches favicons from a remote CDN, which has **privacy implications** (external requests for every site in your vault). DockWarden lets you set icons locally — no external requests ever.
+
+- **Click the avatar** on any item's detail panel to open the icon picker
+- Choose from a **curated emoji set** or pick a **color + initials** combination
+- Custom icons persist in DockWarden's local store and are shown everywhere: item list, detail panel, and the TOTP panel
+- **Reset to default** at any time — the generated color-coded initials are still there as a fallback
+- Zero network requests — completely private and offline
+
+---
+
+### 📋 Clipboard Auto-Clear with Countdown Toast
+
+When you copy a sensitive field (password, TOTP, card number), DockWarden shows a **non-intrusive toast** in the bottom-right corner counting down to clipboard clearance.
+
+- **Visual countdown bar** so you always know how long until the clipboard is wiped
+- **One-click Cancel** if you still need the value on the clipboard
+- **Configurable delay**: 10s · 15s · 30s · 60s · Never — set in **Settings → Security**
+- Uses the native OS clipboard, so it works across all apps — not just in the browser like Bitwarden's extension
+- Setting is persisted across app restarts
+
+---
+
+### 🛡️ TOTP Code Panel
+
+Bitwarden supports TOTP codes, but buries them deep inside individual item views. DockWarden surfaces **all your expiring codes at a glance** in a dedicated panel.
+
+- **All TOTP codes in one grid view** — no more clicking into each item to find the code
+- **Live countdown ring** on every card showing seconds remaining before code rotation
+- **Visual urgency**: green → yellow → red as the code approaches expiry
+- **Critical pulse animation** when a code has less than 5 seconds left
+- **Click any card** to copy the code (also respects the clipboard auto-clear setting)
+- **Search/filter** by item name or username
+- **Respects custom icons** — your emoji and color icons show here too
+- Codes are generated **client-side** using Web Crypto API — the TOTP secret never leaves your device
+
+Access via **TOTP Codes** in the sidebar tools section (Ctrl+click to focus quickly).
 
 ---
 
@@ -377,6 +436,10 @@ export class VaultService {
 | ✅ Auto-updater | Silent background updates via `electron-updater` + GitHub Releases | **Shipped** |
 | ✅ Mac Auto-Type | `pbcopy` + `osascript` keystroke injection for macOS | **Shipped** |
 | ✅ TOTP in Launcher | Click or `Tab` to copy live OTP code; countdown ring | **Shipped** |
+| ✅ Vault Snapshot Diffing | Auto-snapshot on sync, manual snapshots, A/B diff viewer | **Shipped** |
+| ✅ Custom Icons per Entry | Emoji, color+initials picker — zero CDN requests, private | **Shipped** |
+| ✅ Clipboard Auto-Clear | Toast countdown, cancel button, configurable delay (10–60s) | **Shipped** |
+| ✅ TOTP Panel | All codes at a glance, live countdown ring, urgency coloring, click-to-copy | **Shipped** |
 | 🚧 Cloud backup adapters | S3, Cloudflare R2, Backblaze B2, WebDAV live | Planned |
 
 ---

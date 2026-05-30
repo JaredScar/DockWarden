@@ -194,8 +194,9 @@
           <span class="row-sub">Auto-clear copied passwords after</span>
         </div>
         <div class="shortcut-row">
-          <span class="row-value">{{ clearClipboard() }}s</span>
-          <select class="form-control settings-select" [ngModel]="clearClipboard()" (ngModelChange)="clearClipboard.set(+$event)">
+          <span class="row-value">{{ clipboardService.clearDelay() > 0 ? (clipboardService.clearDelay() + 's') : 'Never' }}</span>
+          <select class="form-control settings-select" [ngModel]="clipboardService.clearDelay()" (ngModelChange)="clipboardService.updateDelay(+$event)">
+            <option [value]="10">10 seconds</option>
             <option [value]="15">15 seconds</option>
             <option [value]="30">30 seconds</option>
             <option [value]="60">60 seconds</option>

@@ -1,0 +1,246 @@
+:host {
+  display: block;
+  width: 100%;
+}
+
+.totp-page {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.totp-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+
+  h1 {
+    font-size: 22px;
+    font-weight: 700;
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    i { color: var(--accent-blue); }
+  }
+
+  p { font-size: 13px; color: var(--text-secondary); }
+}
+
+.totp-title-area { flex: 1; }
+
+.totp-search-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+
+  i {
+    position: absolute;
+    left: 10px;
+    font-size: 12px;
+    color: var(--text-muted);
+    pointer-events: none;
+  }
+}
+
+.totp-search {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 8px 12px 8px 30px;
+  font-size: 13px;
+  color: var(--text-primary);
+  font-family: inherit;
+  width: 220px;
+  outline: none;
+  transition: border-color var(--transition);
+  &:focus { border-color: var(--accent-blue); }
+  &::placeholder { color: var(--text-muted); }
+}
+
+// ─── Empty state ──────────────────────────────────────────────────────────────
+
+.totp-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 80px 32px;
+  gap: 10px;
+  text-align: center;
+
+  .totp-empty-icon { font-size: 52px; color: var(--text-muted); opacity: 0.4; }
+  p { font-size: 15px; font-weight: 500; color: var(--text-secondary); }
+  span { font-size: 13px; color: var(--text-muted); max-width: 300px; }
+}
+
+// ─── Grid ─────────────────────────────────────────────────────────────────────
+
+.totp-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+
+// ─── Card ─────────────────────────────────────────────────────────────────────
+
+.totp-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition: border-color var(--transition), transform var(--transition), box-shadow var(--transition);
+  user-select: none;
+
+  &:hover {
+    border-color: var(--text-muted);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+    .totp-copy-hint { opacity: 1; }
+  }
+
+  &.urgency-warn {
+    border-color: rgba(245, 158, 11, 0.5);
+    .totp-ring-fill { stroke: #f59e0b; }
+    .totp-ring-secs { color: #f59e0b; }
+    .totp-code { color: #f59e0b; }
+  }
+
+  &.urgency-critical {
+    border-color: rgba(239, 68, 68, 0.5);
+    .totp-ring-fill { stroke: #ef4444; }
+    .totp-ring-secs { color: #ef4444; }
+    .totp-code { color: #ef4444; }
+    animation: pulse-border 1s ease infinite;
+  }
+
+  &.copied {
+    border-color: var(--accent-green);
+  }
+}
+
+@keyframes pulse-border {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.15); }
+  50%       { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
+}
+
+// ─── Ring ─────────────────────────────────────────────────────────────────────
+
+.totp-ring-wrap {
+  position: relative;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.totp-ring {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+.totp-ring-track {
+  stroke: var(--bg-tertiary);
+}
+
+.totp-ring-fill {
+  stroke: var(--accent-green);
+  stroke-linecap: round;
+  transition: stroke-dashoffset 1s linear, stroke var(--transition);
+}
+
+.totp-ring-secs {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent-green);
+  z-index: 1;
+  position: relative;
+  transition: color var(--transition);
+}
+
+// ─── Avatar ───────────────────────────────────────────────────────────────────
+
+.totp-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.totp-avatar-emoji {
+  font-size: 22px;
+  background: var(--bg-tertiary) !important;
+}
+
+// ─── Info ─────────────────────────────────────────────────────────────────────
+
+.totp-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.totp-item-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.totp-item-user {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 4px;
+}
+
+.totp-code {
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: 3px;
+  line-height: 1;
+  transition: color var(--transition);
+}
+
+.totp-copied {
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: normal;
+  color: var(--accent-green);
+}
+
+// ─── Copy hint ────────────────────────────────────────────────────────────────
+
+.totp-copy-hint {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  font-size: 12px;
+  color: var(--text-muted);
+  opacity: 0;
+  transition: opacity var(--transition);
+}

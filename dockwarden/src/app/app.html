@@ -122,6 +122,10 @@
       <!-- Tools -->
       <div class="sidebar-section">
         <div class="section-label">TOOLS</div>
+        <a routerLink="/totp" routerLinkActive="active" class="nav-item nav-item-sm">
+          <i class="fas fa-shield-halved nav-icon-sm"></i>
+          <span class="nav-label">TOTP Codes</span>
+        </a>
         <a routerLink="/tags" routerLinkActive="active" class="nav-item nav-item-sm">
           <i class="fas fa-tags nav-icon-sm"></i>
           <span class="nav-label">Tag Manager</span>
@@ -269,6 +273,22 @@
       </div>
     </div>
   </div>
+
+  <!-- Clipboard Auto-Clear Toast -->
+  @if (clipboardService.activeField()) {
+    <div class="clipboard-toast">
+      <div class="clipboard-toast-content">
+        <i class="fas fa-clipboard"></i>
+        <span><strong>{{ clipboardService.activeField() }}</strong> copied — clearing in {{ clipboardService.countdown() }}s</span>
+        <div class="clipboard-toast-bar">
+          <div class="clipboard-toast-bar-fill" [style.width.%]="clipboardService.progressFraction() * 100"></div>
+        </div>
+      </div>
+      <button class="clipboard-toast-cancel" (click)="clipboardService.cancel()" title="Cancel clipboard clear">
+        <i class="fas fa-xmark"></i> Cancel
+      </button>
+    </div>
+  }
 }
 
 <!-- Quick Search (Ctrl+Alt+\) and Auto-Type (Ctrl+Alt+A) open as dedicated

@@ -83,7 +83,15 @@
         <div class="group-letter">{{ group[0] }}</div>
         @for (item of group[1]; track item.id) {
           <div class="item-row" [class.selected]="selectedItem()?.id === item.id" (click)="selectItem(item)">
-            <div class="item-avatar" [style.background]="getItemColor(item)">{{ getInitials(item.name) }}</div>
+            @if (getCustomIcon(item.id); as ci) {
+              @if (ci.type === 'emoji') {
+                <div class="item-avatar item-avatar-emoji">{{ ci.value }}</div>
+              } @else {
+                <div class="item-avatar" [style.background]="ci.bg">{{ ci.value }}</div>
+              }
+            } @else {
+              <div class="item-avatar" [style.background]="getItemColor(item)">{{ getInitials(item.name) }}</div>
+            }
             <div class="item-info">
               <div class="item-name">
                 {{ item.name }}
@@ -110,9 +118,43 @@
 
       <!-- Header -->
       <div class="detail-header">
-        <div class="detail-avatar" [style.background]="getItemColor(item)">
-          {{ getInitials(editing() ? editName() : item.name) }}
+        <!-- Avatar with icon picker trigger -->
+        <div class="detail-avatar-wrap">
+          @if (getCustomIcon(item.id); as ci) {
+            @if (ci.type === 'emoji') {
+              <div class="detail-avatar detail-avatar-emoji" (click)="toggleIconPicker()" title="Change icon">{{ ci.value }}</div>
+            } @else {
+              <div class="detail-avatar" [style.background]="ci.bg" (click)="toggleIconPicker()" title="Change icon">{{ ci.value }}</div>
+            }
+          } @else {
+            <div class="detail-avatar" [style.background]="getItemColor(item)" (click)="toggleIconPicker()" title="Change icon">
+              {{ getInitials(editing() ? editName() : item.name) }}
+            </div>
+          }
+          <div class="avatar-edit-hint"><i class="fas fa-pen"></i></div>
+
+          <!-- Icon picker popover -->
+          @if (iconPickerOpen()) {
+            <div class="icon-picker-popover">
+              <div class="icon-picker-section-label">Emoji</div>
+              <div class="icon-picker-emojis">
+                @for (emoji of presetEmojis; track emoji) {
+                  <button class="icon-pick-btn" (click)="pickEmoji(emoji)" title="{{ emoji }}">{{ emoji }}</button>
+                }
+              </div>
+              <div class="icon-picker-section-label" style="margin-top:8px">Color</div>
+              <div class="icon-picker-colors">
+                @for (color of presetColors; track color) {
+                  <button class="color-pick-btn" [style.background]="color" (click)="pickColor(color)" title="{{ color }}">
+                    {{ getInitials(item.name) }}
+                  </button>
+                }
+              </div>
+              <button class="icon-reset-btn" (click)="resetIcon()"><i class="fas fa-rotate-left"></i> Reset to default</button>
+            </div>
+          }
         </div>
+
         <div class="detail-title">
           @if (editing()) {
             <input class="edit-name-inline" [ngModel]="editName()" (ngModelChange)="editName.set($event)" placeholder="Item name" />

@@ -35,6 +35,9 @@
     <button class="tab" [class.active]="activeTab() === 'destinations'" (click)="activeTab.set('destinations')">Destinations</button>
     <button class="tab" [class.active]="activeTab() === 'schedule'" (click)="activeTab.set('schedule')">Schedule</button>
     <button class="tab" [class.active]="activeTab() === 'history'" (click)="activeTab.set('history')">History</button>
+    <button class="tab" [class.active]="activeTab() === 'snapshots'" (click)="onSnapshotTab()">
+      <i class="fas fa-code-compare" style="font-size:11px"></i> Snapshot Diff
+    </button>
   </div>
 
   <!-- Destinations Tab -->
@@ -133,6 +136,147 @@
           </tbody>
         </table>
       }
+    </div>
+  }
+
+  <!-- Snapshot Diff Tab -->
+  @if (activeTab() === 'snapshots') {
+    <div class="snapshot-section">
+      <!-- Save new snapshot -->
+      <div class="snapshot-save-bar">
+        <i class="fas fa-camera" style="color:var(--text-muted)"></i>
+        <input class="form-input snapshot-label-input" placeholder="Snapshot label (optional)"
+               [ngModel]="newSnapshotLabel()" (ngModelChange)="newSnapshotLabel.set($event)" />
+        <button class="btn btn-secondary btn-sm" (click)="saveSnapshot()" [disabled]="savingSnapshot()">
+          @if (savingSnapshot()) { <i class="fas fa-spinner fa-spin"></i> } @else { <i class="fas fa-plus"></i> }
+          Save Snapshot
+        </button>
+      </div>
+
+      <div class="snapshot-layout">
+        <!-- Left: snapshot list -->
+        <div class="snapshot-list-col">
+          <div class="snapshot-list-header">
+            <span>Saved Snapshots</span>
+            <span class="snapshot-hint">Snapshots auto-save on every sync</span>
+          </div>
+
+          @if (snapshotLoading()) {
+            <div class="snapshot-loading"><i class="fas fa-spinner fa-spin"></i> Loading…</div>
+          } @else if (snapshots().length === 0) {
+            <div class="snapshot-empty">
+              <i class="fas fa-camera-slash" style="font-size:24px;color:var(--text-muted);margin-bottom:8px"></i>
+              <p>No snapshots yet. Sync your vault or save a manual snapshot above.</p>
+            </div>
+          } @else {
+            <div class="snapshot-items">
+              @for (snap of snapshots(); track snap.id) {
+                <div class="snapshot-row" [class.selected-a]="diffIdA() === snap.id" [class.selected-b]="diffIdB() === snap.id">
+                  <div class="snapshot-row-info">
+                    <div class="snapshot-row-label">{{ snap.label }}</div>
+                    <div class="snapshot-row-meta">{{ formatTimestamp(snap.timestamp) }} · {{ snap.itemCount }} items</div>
+                  </div>
+                  <div class="snapshot-row-actions">
+                    <button class="snap-pick-btn" [class.active]="diffIdA() === snap.id" (click)="diffIdA.set(snap.id)" title="Set as snapshot A">A</button>
+                    <button class="snap-pick-btn snap-pick-b" [class.active]="diffIdB() === snap.id" (click)="diffIdB.set(snap.id)" title="Set as snapshot B">B</button>
+                    <button class="btn-icon-xs" (click)="deleteSnapshot(snap.id)" title="Delete snapshot">
+                      <i class="fas fa-trash"></i>
+                    </button>
+                  </div>
+                </div>
+              }
+            </div>
+          }
+        </div>
+
+        <!-- Right: diff result -->
+        <div class="snapshot-diff-col">
+          <div class="diff-selector">
+            <div class="diff-sel-item" [class.set]="diffIdA()">
+              <span class="diff-letter diff-a">A</span>
+              <span class="diff-sel-label">{{ diffIdA() ? getSnapshotLabel(diffIdA()) : 'Click A on a snapshot' }}</span>
+            </div>
+            <i class="fas fa-arrow-right" style="color:var(--text-muted);font-size:13px"></i>
+            <div class="diff-sel-item" [class.set]="diffIdB()">
+              <span class="diff-letter diff-b">B</span>
+              <span class="diff-sel-label">{{ diffIdB() ? getSnapshotLabel(diffIdB()) : 'Click B on a snapshot' }}</span>
+            </div>
+            <button class="btn btn-primary btn-sm" (click)="runDiff()" [disabled]="!canDiff() || diffLoading()">
+              @if (diffLoading()) { <i class="fas fa-spinner fa-spin"></i> } @else { <i class="fas fa-code-compare"></i> }
+              Compare
+            </button>
+          </div>
+
+          @if (diffError()) {
+            <div class="diff-error"><i class="fas fa-triangle-exclamation"></i> {{ diffError() }}</div>
+          }
+
+          @if (diffResult(); as diff) {
+            <div class="diff-summary-row">
+              <span class="diff-stat diff-added"><i class="fas fa-plus"></i> {{ diff.added.length }} added</span>
+              <span class="diff-stat diff-deleted"><i class="fas fa-minus"></i> {{ diff.deleted.length }} deleted</span>
+              <span class="diff-stat diff-modified"><i class="fas fa-pen"></i> {{ diff.modified.length }} modified</span>
+              <span class="diff-stat diff-unchanged"><i class="fas fa-equals"></i> {{ diff.unchanged }} unchanged</span>
+            </div>
+
+            @if (diff.added.length === 0 && diff.deleted.length === 0 && diff.modified.length === 0) {
+              <div class="diff-no-changes">
+                <i class="fas fa-circle-check" style="font-size:28px;color:var(--accent-green);margin-bottom:8px"></i>
+                <p>No changes between the two snapshots</p>
+              </div>
+            }
+
+            @if (diff.added.length > 0) {
+              <div class="diff-group">
+                <div class="diff-group-title diff-group-added"><i class="fas fa-plus-circle"></i> Added ({{ diff.added.length }})</div>
+                @for (item of diff.added; track item.id) {
+                  <div class="diff-item diff-item-added">
+                    <i class="{{ getTypeIcon(item.type) }}" style="font-size:12px;opacity:0.7"></i>
+                    <span class="diff-item-name">{{ item.name }}</span>
+                    <span class="diff-item-type">{{ item.type }}</span>
+                  </div>
+                }
+              </div>
+            }
+
+            @if (diff.deleted.length > 0) {
+              <div class="diff-group">
+                <div class="diff-group-title diff-group-deleted"><i class="fas fa-minus-circle"></i> Deleted ({{ diff.deleted.length }})</div>
+                @for (item of diff.deleted; track item.id) {
+                  <div class="diff-item diff-item-deleted">
+                    <i class="{{ getTypeIcon(item.type) }}" style="font-size:12px;opacity:0.7"></i>
+                    <span class="diff-item-name">{{ item.name }}</span>
+                    <span class="diff-item-type">{{ item.type }}</span>
+                  </div>
+                }
+              </div>
+            }
+
+            @if (diff.modified.length > 0) {
+              <div class="diff-group">
+                <div class="diff-group-title diff-group-modified"><i class="fas fa-pen-to-square"></i> Modified ({{ diff.modified.length }})</div>
+                @for (entry of diff.modified; track entry.before.id) {
+                  <div class="diff-item diff-item-modified">
+                    <i class="{{ getTypeIcon(entry.before.type) }}" style="font-size:12px;opacity:0.7"></i>
+                    <span class="diff-item-name">{{ entry.after.name }}</span>
+                    @if (entry.before.name !== entry.after.name) {
+                      <span class="diff-rename">(was: {{ entry.before.name }})</span>
+                    }
+                    <span class="diff-item-type">{{ entry.before.type }}</span>
+                  </div>
+                }
+              </div>
+            }
+          }
+
+          @if (!diffResult() && !diffError() && !diffLoading()) {
+            <div class="diff-placeholder">
+              <i class="fas fa-code-compare" style="font-size:32px;color:var(--text-muted);margin-bottom:12px"></i>
+              <p>Select two snapshots (A and B) then click Compare</p>
+            </div>
+          }
+        </div>
+      </div>
     </div>
   }
 </div>

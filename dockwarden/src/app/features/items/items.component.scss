@@ -752,3 +752,126 @@
   .empty-icon { font-size: 48px; opacity: 0.3; }
   p { font-size: 14px; }
 }
+
+// ─── Custom Icon ──────────────────────────────────────────────────────────────
+
+.item-avatar-emoji {
+  font-size: 18px;
+  background: var(--bg-tertiary) !important;
+}
+
+.detail-avatar-wrap {
+  position: relative;
+  flex-shrink: 0;
+  cursor: pointer;
+
+  &:hover .avatar-edit-hint { opacity: 1; }
+}
+
+.detail-avatar-emoji {
+  font-size: 28px;
+  background: var(--bg-tertiary) !important;
+}
+
+.avatar-edit-hint {
+  position: absolute;
+  bottom: -3px;
+  right: -3px;
+  width: 18px;
+  height: 18px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8px;
+  color: var(--text-secondary);
+  opacity: 0;
+  transition: opacity var(--transition);
+  pointer-events: none;
+}
+
+.icon-picker-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 200;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 12px;
+  min-width: 220px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+}
+
+.icon-picker-section-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.icon-picker-emojis {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+
+.icon-pick-btn {
+  width: 30px;
+  height: 30px;
+  border: none;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background var(--transition);
+  &:hover { background: var(--bg-selected); }
+}
+
+.icon-picker-colors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.color-pick-btn {
+  width: 28px;
+  height: 28px;
+  border: 2px solid transparent;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 700;
+  color: rgba(255,255,255,0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform var(--transition), border-color var(--transition);
+  &:hover { transform: scale(1.15); border-color: rgba(255,255,255,0.5); }
+}
+
+.icon-reset-btn {
+  margin-top: 10px;
+  width: 100%;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 5px 10px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  font-family: inherit;
+  transition: all var(--transition);
+  &:hover { background: var(--bg-card-hover); color: var(--text-primary); }
+}
