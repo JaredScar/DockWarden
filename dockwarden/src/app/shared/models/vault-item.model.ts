@@ -1,5 +1,28 @@
 export type ItemType = 'login' | 'card' | 'identity' | 'note';
 
+export type TemplateFieldType = 'text' | 'hidden' | 'boolean' | 'url';
+
+export interface TemplateField {
+  id: string;
+  name: string;
+  type: TemplateFieldType;
+  defaultValue: string;
+  placeholder: string;
+  required: boolean;
+}
+
+export interface VaultTemplate {
+  id: string;
+  name: string;
+  icon: string;
+  color: string;
+  baseType: 'login' | 'note';
+  fields: TemplateField[];
+  defaultFolder: string | null;
+  description: string;
+  builtIn?: boolean;
+}
+
 export type ExpiryStatus = 'expired' | 'this-week' | 'this-month' | 'ok';
 
 export interface VaultItem {

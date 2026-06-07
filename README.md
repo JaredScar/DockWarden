@@ -4,7 +4,7 @@
 
 ### A power-user companion app built on top of Bitwarden.
 
-**Tags · Multi-Tag Filtering · Auto-Type · Smart Views · Expiry Policies · Quick Launcher · Multi-Account · Snapshot Diffing · Custom Icons · Clipboard Auto-Clear · TOTP Panel**
+**Tags · Multi-Tag Filtering · Auto-Type · Smart Views · Expiry Policies · Quick Launcher · Multi-Account · Snapshot Diffing · Custom Icons · Clipboard Auto-Clear · TOTP Panel · Vault Item Templates**
 
 [![Electron](https://img.shields.io/badge/Electron-42-47848F?style=flat-square&logo=electron&logoColor=white)](https://electronjs.org)
 [![Angular](https://img.shields.io/badge/Angular-21-DD0031?style=flat-square&logo=angular&logoColor=white)](https://angular.dev)
@@ -42,6 +42,7 @@ Everything DockWarden does uses the **official Bitwarden CLI** under the hood. Y
 | **Policy-based expiry (e.g. "90-day rotation")** | ✅ | ❌ | ✅ |
 | **Multi-account switching with color coding** | ✅ | ❌ | ✅ |
 | **Vault snapshot diffing (audit trail)** | ❌ | ❌ | ✅ |
+| **Customizable vault item templates** | ❌ | ❌ | ✅ |
 | **Custom local icons / favicons (no CDN)** | ❌ | ❌ | ✅ |
 | **Clipboard auto-clear with toast countdown** | ✅ | ⚠️ (extension only) | ✅ |
 | **TOTP panel — all codes at a glance** | ✅ | ❌ | ✅ |
@@ -230,6 +231,73 @@ Access via **TOTP Codes** in the sidebar tools section (Ctrl+click to focus quic
 
 ---
 
+### 📐 Customizable Vault Item Templates
+
+Bitwarden's fixed item types — Login, Card, Identity, Secure Note — stop power users cold. Where do you store an SSH server's key path? A database's SSL cert? An API key's environment and expiry? DockWarden solves this with **Vault Item Templates**: a fully customizable field structure that travels inside your Bitwarden vault.
+
+#### How it works
+
+Templates are stored in your local DockWarden profile. When you create a new item from a template, the template's custom fields are written directly to Bitwarden's own custom field system — **encrypted at rest in your vault**, visible in any Bitwarden client, never requiring DockWarden to store secrets separately.
+
+#### Six built-in templates out of the box
+
+| Template | Fields |
+|---|---|
+| 🖥️ **SSH Server** | Host · Port · Key Path · Sudo Password |
+| 🔌 **API Key** | API Key · Secret · Endpoint · Environment · Key Expiry |
+| 🗄️ **Database** | Host · Port · Database Name · SSL Certificate |
+| 📋 **Software License** | License Key · Seats · Purchase Date · Renewal Date · Vendor |
+| 📶 **Wi-Fi Network** | SSID · Band · Router IP |
+| ☁️ **AWS Credentials** | Access Key ID · Secret Access Key · Region · Account ID |
+
+#### Template Builder
+
+Open **Templates** in the sidebar to build your own:
+
+- **Name, icon, and color** — choose from 24 emoji icons and 10 accent colors
+- **Base type** — Login (default) or Secure Note
+- **Default folder** — automatically assigned when you create from this template
+- **Custom fields** — add any number of named fields, each with:
+  - **Type**: Text · Hidden (masked) · URL · Toggle (boolean)
+  - **Default value** — pre-filled when the new item modal opens
+  - **Placeholder hint** — shown as greyed-out text inside the field
+  - **Required flag** — visually marked in the creation form
+- **Field ordering** — reorder fields with up/down arrows
+
+#### Template picker in the New Item flow
+
+Press `Ctrl+N` to open the New Item modal. Instead of jumping straight to a blank form, a **visual picker** appears first:
+
+```
+What type of item?
+──────────────────────────────────
+  Standard Types
+  [🔑 Login]  [📝 Secure Note]
+
+  Built-in Templates
+  [🖥️ SSH Server]  [🔌 API Key]  [🗄️ Database]
+  [📋 License]     [📶 Wi-Fi]    [☁️ AWS]
+
+  My Templates
+  [🎮 Game Account]  [🏠 Home Server]
+──────────────────────────────────
+               [Cancel] [+ Create Template]
+```
+
+Select any card to move to the fill-in form, where standard fields (username, password, website) are shown alongside the template's custom fields — pre-filled with your default values. A back arrow lets you return to the picker without losing what you typed.
+
+#### Import / Export
+
+Share template definitions with your team or the community as JSON snippets:
+
+- **Export** — click Export on any template to get a portable JSON you can paste anywhere
+- **Import** — paste community-contributed JSON to add a template instantly
+- Template packs (e.g. "DevOps bundle", "homelab bundle") can be shared as a single JSON file
+
+> Your vault data never leaves Bitwarden. Templates are definitions only — secrets are always encrypted by Bitwarden.
+
+---
+
 ### 🖱️ Click-to-Copy Fields
 
 A small but frequently requested UX improvement: clicking anywhere on a username, password, website, or card number field box copies the value to your clipboard instantly — no need to aim for the small copy icon.
@@ -384,9 +452,10 @@ dockwarden/
     │   ├── expiry/         # Expiry dashboard + reminder rules
     │   ├── backup/         # Backup destinations, schedule, history
     │   ├── settings/       # Preferences + Custom CSS editor
+    │   ├── templates/      # Template builder, picker, JSON import/export
     │   └── unlock/         # Login / unlock screen with 2FA support
     └── shared/
-        └── models/         # TypeScript interfaces: VaultItem, Tag, SmartView…
+        └── models/         # TypeScript interfaces: VaultItem, Tag, SmartView, VaultTemplate…
 ```
 
 ---
@@ -440,6 +509,7 @@ export class VaultService {
 | ✅ Custom Icons per Entry | Emoji, color+initials picker — zero CDN requests, private | **Shipped** |
 | ✅ Clipboard Auto-Clear | Toast countdown, cancel button, configurable delay (10–60s) | **Shipped** |
 | ✅ TOTP Panel | All codes at a glance, live countdown ring, urgency coloring, click-to-copy | **Shipped** |
+| ✅ Vault Item Templates | Template builder, 6 built-in presets, two-step Ctrl+N picker, JSON import/export | **Shipped** |
 | 🚧 Cloud backup adapters | S3, Cloudflare R2, Backblaze B2, WebDAV live | Planned |
 
 ---

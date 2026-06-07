@@ -1,0 +1,385 @@
+<div class="templates-page">
+
+  <!-- ── Page header ──────────────────────────────────────────────────────── -->
+  <div class="page-header">
+    <div class="page-header-left">
+      <h1 class="page-title"><i class="fas fa-layer-group"></i> Vault Templates</h1>
+      <p class="page-subtitle">
+        Pre-fill new items with custom field structures. Templates travel with your vault via Bitwarden custom fields.
+      </p>
+    </div>
+    <div class="page-header-actions">
+      <button class="btn btn-ghost" (click)="openImport()">
+        <i class="fas fa-file-import"></i> Import JSON
+      </button>
+      <button class="btn btn-primary" (click)="startNew()">
+        <i class="fas fa-plus"></i> New Template
+      </button>
+    </div>
+  </div>
+
+  <!-- ── Main layout: sidebar list + detail ───────────────────────────────── -->
+  <div class="templates-layout">
+
+    <!-- Template list -->
+    <aside class="template-list">
+      <!-- Built-in -->
+      <div class="list-section-label">BUILT-IN</div>
+      @for (t of builtInTemplates(); track t.id) {
+        <button class="template-list-item" [class.selected]="selectedId() === t.id"
+                (click)="selectTemplate(t.id)">
+          <span class="tpl-icon" [style.background]="t.color + '22'" [style.color]="t.color">
+            {{ t.icon }}
+          </span>
+          <div class="tpl-list-info">
+            <span class="tpl-list-name">{{ t.name }}</span>
+            <span class="tpl-list-count">{{ t.fields.length }} field{{ t.fields.length !== 1 ? 's' : '' }}</span>
+          </div>
+          <span class="tpl-builtin-badge">built-in</span>
+        </button>
+      }
+
+      <!-- User templates -->
+      @if (userTemplates().length > 0) {
+        <div class="list-section-label" style="margin-top:12px">MY TEMPLATES</div>
+        @for (t of userTemplates(); track t.id) {
+          <button class="template-list-item" [class.selected]="selectedId() === t.id"
+                  (click)="selectTemplate(t.id)">
+            <span class="tpl-icon" [style.background]="t.color + '22'" [style.color]="t.color">
+              {{ t.icon }}
+            </span>
+            <div class="tpl-list-info">
+              <span class="tpl-list-name">{{ t.name }}</span>
+              <span class="tpl-list-count">{{ t.fields.length }} field{{ t.fields.length !== 1 ? 's' : '' }}</span>
+            </div>
+          </button>
+        }
+      }
+
+      @if (userTemplates().length === 0) {
+        <p class="list-empty">No custom templates yet. Click <strong>New Template</strong> to create one.</p>
+      }
+    </aside>
+
+    <!-- Detail panel -->
+    <section class="template-detail">
+
+      @if (!selectedTemplate() && !draft()) {
+        <div class="detail-empty">
+          <i class="fas fa-layer-group" style="font-size:40px;color:var(--text-muted);margin-bottom:12px"></i>
+          <p>Select a template or create a new one</p>
+        </div>
+      }
+
+      <!-- ── View mode ──────────────────────────────────────────────────── -->
+      @if (selectedTemplate() && !editMode()) {
+        <div class="detail-view">
+          <div class="detail-header">
+            <span class="tpl-icon-lg"
+                  [style.background]="selectedTemplate()!.color + '22'"
+                  [style.color]="selectedTemplate()!.color">
+              {{ selectedTemplate()!.icon }}
+            </span>
+            <div class="detail-header-info">
+              <h2 class="detail-name">{{ selectedTemplate()!.name }}</h2>
+              <p class="detail-desc">{{ selectedTemplate()!.description }}</p>
+              <div class="detail-meta">
+                <span class="meta-badge">
+                  <i class="fas fa-key"></i> {{ selectedTemplate()!.baseType === 'login' ? 'Login' : 'Secure Note' }}
+                </span>
+                <span class="meta-badge">
+                  <i class="fas fa-list"></i> {{ selectedTemplate()!.fields.length }} custom field{{ selectedTemplate()!.fields.length !== 1 ? 's' : '' }}
+                </span>
+                @if (selectedTemplate()!.builtIn) {
+                  <span class="meta-badge meta-badge-builtin">
+                    <i class="fas fa-lock"></i> Built-in
+                  </span>
+                }
+              </div>
+            </div>
+            <div class="detail-header-actions">
+              <button class="btn btn-primary" (click)="createItemFromTemplate(selectedTemplate()!.id)">
+                <i class="fas fa-plus"></i> Use Template
+              </button>
+              @if (!selectedTemplate()!.builtIn) {
+                <button class="btn btn-ghost" (click)="startEdit()">
+                  <i class="fas fa-pencil"></i> Edit
+                </button>
+              }
+              <button class="btn btn-ghost" (click)="duplicateTemplate(selectedTemplate()!)">
+                <i class="fas fa-copy"></i> Duplicate
+              </button>
+              <button class="btn btn-ghost" (click)="openExport(selectedTemplate()!)">
+                <i class="fas fa-file-export"></i> Export
+              </button>
+              @if (!selectedTemplate()!.builtIn) {
+                <button class="btn btn-danger-ghost" (click)="confirmDelete(selectedTemplate()!.id)">
+                  <i class="fas fa-trash"></i> Delete
+                </button>
+              }
+            </div>
+          </div>
+
+          <!-- Fields preview -->
+          <div class="fields-preview">
+            <h3 class="fields-preview-title">Custom Fields</h3>
+            @if (selectedTemplate()!.fields.length === 0) {
+              <p class="fields-empty">No custom fields defined.</p>
+            }
+            @for (f of selectedTemplate()!.fields; track f.id) {
+              <div class="field-preview-row">
+                <span class="field-preview-type-icon">
+                  <i [class]="fieldTypeIcon(f.type)"></i>
+                </span>
+                <div class="field-preview-info">
+                  <span class="field-preview-name">
+                    {{ f.name }}
+                    @if (f.required) { <span class="required-dot">*</span> }
+                  </span>
+                  <span class="field-preview-meta">
+                    {{ fieldTypeLabel(f.type) }}
+                    @if (f.placeholder) { · <em>{{ f.placeholder }}</em> }
+                    @if (f.defaultValue) { · default: <strong>{{ f.type === 'hidden' ? '••••••' : f.defaultValue }}</strong> }
+                  </span>
+                </div>
+              </div>
+            }
+          </div>
+
+          <!-- Delete confirmation inline -->
+          @if (deleteConfirm() === selectedTemplate()!.id) {
+            <div class="delete-confirm">
+              <i class="fas fa-triangle-exclamation" style="color:var(--accent-red)"></i>
+              Delete <strong>{{ selectedTemplate()!.name }}</strong>? This cannot be undone.
+              <button class="btn btn-danger" (click)="doDelete(selectedTemplate()!.id)">Delete</button>
+              <button class="btn btn-ghost" (click)="cancelDelete()">Cancel</button>
+            </div>
+          }
+        </div>
+      }
+
+      <!-- ── Edit mode ──────────────────────────────────────────────────── -->
+      @if (editMode() && draft()) {
+        <div class="detail-edit">
+          <div class="edit-top-bar">
+            <h2 class="edit-title">
+              @if (draft()!.name) { {{ draft()!.name }} } @else { New Template }
+            </h2>
+            <div class="edit-top-actions">
+              <button class="btn btn-ghost" (click)="cancelEdit()" [disabled]="saving()">Cancel</button>
+              <button class="btn btn-primary" (click)="saveEdit()" [disabled]="saving()">
+                @if (saving()) {
+                  <i class="fas fa-spinner fa-spin"></i> Saving…
+                } @else {
+                  <i class="fas fa-floppy-disk"></i> Save Template
+                }
+              </button>
+            </div>
+          </div>
+
+          @if (saveError()) {
+            <div class="edit-error"><i class="fas fa-circle-exclamation"></i> {{ saveError() }}</div>
+          }
+
+          <div class="edit-form">
+            <!-- Identity row: icon, color, name -->
+            <div class="edit-identity-row">
+              <div class="icon-color-group">
+                <div class="icon-preview" [style.background]="draft()!.color + '22'" [style.color]="draft()!.color">
+                  {{ draft()!.icon }}
+                </div>
+                <div class="icon-color-pickers">
+                  <div class="form-row">
+                    <label class="form-label">Icon</label>
+                    <div class="icon-presets">
+                      @for (ic of ICON_PRESETS; track ic) {
+                        <button class="icon-preset-btn" [class.active]="draft()!.icon === ic"
+                                (click)="updateDraftField('icon', ic)">{{ ic }}</button>
+                      }
+                    </div>
+                  </div>
+                  <div class="form-row">
+                    <label class="form-label">Color</label>
+                    <div class="color-presets">
+                      @for (c of COLOR_PRESETS; track c) {
+                        <button class="color-preset-btn" [style.background]="c"
+                                [class.active]="draft()!.color === c"
+                                (click)="updateDraftField('color', c)">
+                        </button>
+                      }
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="name-desc-group">
+                <div class="form-row">
+                  <label class="form-label">Template Name <span class="required">*</span></label>
+                  <input class="form-input" placeholder="e.g. SSH Server"
+                         [ngModel]="draft()!.name" (ngModelChange)="updateDraftField('name', $event)" />
+                </div>
+                <div class="form-row">
+                  <label class="form-label">Description</label>
+                  <input class="form-input" placeholder="Short description shown in the picker"
+                         [ngModel]="draft()!.description" (ngModelChange)="updateDraftField('description', $event)" />
+                </div>
+              </div>
+            </div>
+
+            <!-- Base type + folder -->
+            <div class="edit-row-inline">
+              <div class="form-row">
+                <label class="form-label">Base Type</label>
+                <div class="type-tabs">
+                  <button class="type-tab" [class.active]="draft()!.baseType === 'login'"
+                          (click)="updateDraftField('baseType', 'login')">
+                    <i class="fas fa-key"></i> Login
+                  </button>
+                  <button class="type-tab" [class.active]="draft()!.baseType === 'note'"
+                          (click)="updateDraftField('baseType', 'note')">
+                    <i class="fas fa-note-sticky"></i> Secure Note
+                  </button>
+                </div>
+              </div>
+              <div class="form-row">
+                <label class="form-label">Default Folder</label>
+                <select class="form-input form-select"
+                        [ngModel]="draft()!.defaultFolder ?? ''"
+                        (ngModelChange)="updateDraftField('defaultFolder', $event || null)">
+                  <option value="">— No default —</option>
+                  @for (f of folders(); track f.id) {
+                    <option [value]="f.id">{{ f.name }}</option>
+                  }
+                </select>
+              </div>
+            </div>
+
+            <!-- Custom fields editor -->
+            <div class="fields-editor">
+              <div class="fields-editor-header">
+                <span class="fields-editor-title">
+                  <i class="fas fa-list"></i> Custom Fields
+                  <span class="field-count-badge">{{ draft()!.fields.length }}</span>
+                </span>
+                <button class="btn btn-ghost btn-sm" (click)="addField()">
+                  <i class="fas fa-plus"></i> Add Field
+                </button>
+              </div>
+
+              @if (draft()!.fields.length === 0) {
+                <div class="fields-empty-state">
+                  <p>No custom fields yet. Click <strong>Add Field</strong> to define the structure of this template.</p>
+                  <p class="fields-empty-hint">
+                    Fields appear as Bitwarden custom fields when an item is created from this template.
+                  </p>
+                </div>
+              }
+
+              @for (field of draft()!.fields; track field.id; let idx = $index) {
+                <div class="field-edit-row">
+                  <div class="field-row-controls">
+                    <button class="btn-icon-xs" (click)="moveField(idx, -1)" [disabled]="idx === 0" title="Move up">
+                      <i class="fas fa-chevron-up"></i>
+                    </button>
+                    <button class="btn-icon-xs" (click)="moveField(idx, 1)" [disabled]="idx === draft()!.fields.length - 1" title="Move down">
+                      <i class="fas fa-chevron-down"></i>
+                    </button>
+                  </div>
+
+                  <div class="field-edit-body">
+                    <div class="field-edit-top">
+                      <input class="form-input field-name-input" placeholder="Field name (e.g. Host)"
+                             [ngModel]="field.name" (ngModelChange)="updateField(field.id, 'name', $event)" />
+                      <select class="form-input form-select field-type-select"
+                              [ngModel]="field.type" (ngModelChange)="updateField(field.id, 'type', $event)">
+                        @for (ft of fieldTypes; track ft.value) {
+                          <option [value]="ft.value">{{ ft.label }}</option>
+                        }
+                      </select>
+                      <label class="checkbox-label required-check">
+                        <input type="checkbox" [ngModel]="field.required"
+                               (ngModelChange)="updateField(field.id, 'required', $event)" />
+                        Required
+                      </label>
+                    </div>
+                    <div class="field-edit-bottom">
+                      @if (field.type !== 'hidden' && field.type !== 'boolean') {
+                        <input class="form-input" placeholder="Default value"
+                               [ngModel]="field.defaultValue" (ngModelChange)="updateField(field.id, 'defaultValue', $event)" />
+                      }
+                      <input class="form-input" placeholder="Placeholder hint"
+                             [ngModel]="field.placeholder" (ngModelChange)="updateField(field.id, 'placeholder', $event)" />
+                    </div>
+                  </div>
+
+                  <button class="btn-icon-xs btn-icon-danger" (click)="removeField(field.id)" title="Remove field">
+                    <i class="fas fa-xmark"></i>
+                  </button>
+                </div>
+              }
+            </div>
+          </div>
+        </div>
+      }
+
+    </section>
+  </div>
+</div>
+
+<!-- ── Export Modal ──────────────────────────────────────────────────────── -->
+@if (exportOpen()) {
+  <div class="overlay-backdrop" (click)="closeExport()">
+    <div class="modal" (click)="$event.stopPropagation()" style="max-width:560px">
+      <div class="modal-header">
+        <div class="modal-title"><i class="fas fa-file-export"></i> Export Template</div>
+        <button class="btn-icon" (click)="closeExport()"><i class="fas fa-xmark"></i></button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:13px;color:var(--text-secondary);margin-bottom:10px">
+          Share this JSON with others so they can import the template into their DockWarden vault.
+        </p>
+        <textarea class="form-input form-textarea export-textarea" readonly [ngModel]="exportJson()"></textarea>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" (click)="closeExport()">Close</button>
+        <button class="btn btn-primary" (click)="copyExportJson()">
+          <i class="fas fa-copy"></i> Copy JSON
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ── Import Modal ──────────────────────────────────────────────────────── -->
+@if (importOpen()) {
+  <div class="overlay-backdrop" (click)="closeImport()">
+    <div class="modal" (click)="$event.stopPropagation()" style="max-width:560px">
+      <div class="modal-header">
+        <div class="modal-title"><i class="fas fa-file-import"></i> Import Template</div>
+        <button class="btn-icon" (click)="closeImport()"><i class="fas fa-xmark"></i></button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:13px;color:var(--text-secondary);margin-bottom:10px">
+          Paste a DockWarden template JSON exported from another vault or the community.
+        </p>
+        <textarea class="form-input form-textarea export-textarea" placeholder='{ "name": "My Template", "fields": [...] }'
+                  [ngModel]="importJson()" (ngModelChange)="importJson.set($event)"></textarea>
+        @if (importError()) {
+          <div class="edit-error" style="margin-top:8px">
+            <i class="fas fa-circle-exclamation"></i> {{ importError() }}
+          </div>
+        }
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" (click)="closeImport()" [disabled]="saving()">Cancel</button>
+        <button class="btn btn-primary" (click)="doImport()" [disabled]="saving() || !importJson().trim()">
+          @if (saving()) {
+            <i class="fas fa-spinner fa-spin"></i> Importing…
+          } @else {
+            <i class="fas fa-file-import"></i> Import
+          }
+        </button>
+      </div>
+    </div>
+  </div>
+}

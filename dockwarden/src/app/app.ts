@@ -4,6 +4,8 @@ import { FormsModule } from '@angular/forms';
 import { VaultService, AccountProfile } from './core/vault.service';
 import { SmartViewService } from './core/smart-view.service';
 import { ClipboardService } from './core/clipboard.service';
+import { TemplateService } from './core/template.service';
+import { VaultTemplate } from './shared/models';
 import { CommonModule } from '@angular/common';
 import { filter } from 'rxjs/operators';
 
@@ -20,6 +22,7 @@ export class App implements OnInit, OnDestroy {
   private readonly smartViewService = inject(SmartViewService);
   private readonly router = inject(Router);
   readonly clipboardService = inject(ClipboardService);
+  readonly templateService = inject(TemplateService);
   private _kbHandler?: (e: KeyboardEvent) => void;
 
   readonly stats = this.vaultService.stats;
@@ -96,6 +99,8 @@ export class App implements OnInit, OnDestroy {
 
   // ── New Item modal (stays in-app) ──────────────────────────────────────────
   readonly newItemOpen = signal(false);
+  /** 'pick' = template picker step; 'form' = fill-in-details step */
+  readonly newItemStep = signal<'pick' | 'form'>('pick');
   readonly newItemType = signal<'login' | 'note'>('login');
   readonly newItemName = signal('');
   readonly newItemUsername = signal('');
@@ -106,12 +111,19 @@ export class App implements OnInit, OnDestroy {
   readonly newItemSaving = signal(false);
   readonly newItemError = signal('');
   readonly newItemShowPw = signal(false);
+  readonly newItemTemplateId = signal<string | null>(null);
+  readonly newItemTemplateFields = signal<{ id: string; name: string; type: 'text' | 'hidden' | 'boolean' | 'url'; value: string; placeholder: string; required: boolean }[]>([]);
+
+  readonly newItemSelectedTemplate = computed<VaultTemplate | null>(() => {
+    const id = this.newItemTemplateId();
+    return id ? (this.templateService.allTemplates().find(t => t.id === id) ?? null) : null;
+  });
 
   openQuickSearch(): void {
     window.electronAPI?.launcher?.openSearch();
   }
 
-  openNewItem(): void {
+  openNewItem(templateId?: string | null): void {
     this.newItemName.set('');
     this.newItemUsername.set('');
     this.newItemPassword.set('');
@@ -120,7 +132,58 @@ export class App implements OnInit, OnDestroy {
     this.newItemFolder.set('');
     this.newItemError.set('');
     this.newItemShowPw.set(false);
+    this.newItemTemplateId.set(null);
+    this.newItemTemplateFields.set([]);
+
+    if (templateId) {
+      this.applyTemplate(templateId);
+      this.newItemStep.set('form');
+    } else {
+      this.newItemType.set('login');
+      this.newItemStep.set('pick');
+    }
     this.newItemOpen.set(true);
+  }
+
+  selectTemplateAndProceed(templateId: string): void {
+    this.applyTemplate(templateId);
+    this.newItemStep.set('form');
+  }
+
+  selectBlankType(type: 'login' | 'note'): void {
+    this.newItemType.set(type);
+    this.newItemTemplateId.set(null);
+    this.newItemTemplateFields.set([]);
+    this.newItemFolder.set('');
+    this.newItemStep.set('form');
+  }
+
+  backToPicker(): void {
+    this.newItemStep.set('pick');
+  }
+
+  private applyTemplate(templateId: string): void {
+    const t = this.templateService.allTemplates().find(t => t.id === templateId);
+    if (!t) return;
+    this.newItemTemplateId.set(t.id);
+    this.newItemType.set(t.baseType);
+    this.newItemFolder.set(t.defaultFolder ?? '');
+    this.newItemTemplateFields.set(
+      t.fields.map(f => ({
+        id: f.id,
+        name: f.name,
+        type: f.type,
+        value: f.defaultValue,
+        placeholder: f.placeholder,
+        required: f.required,
+      }))
+    );
+  }
+
+  updateTemplateFieldValue(fieldId: string, value: string): void {
+    this.newItemTemplateFields.update(fields =>
+      fields.map(f => f.id === fieldId ? { ...f, value } : f)
+    );
   }
 
   closeNewItem(): void { this.newItemOpen.set(false); }
@@ -137,6 +200,10 @@ export class App implements OnInit, OnDestroy {
       website: this.newItemWebsite() || undefined,
       notes: this.newItemNotes() || undefined,
       folderId: this.newItemFolder() || null,
+      templateId: this.newItemTemplateId() || null,
+      templateFields: this.newItemTemplateFields().length > 0
+        ? this.newItemTemplateFields().map(f => ({ name: f.name, type: f.type, value: f.value }))
+        : undefined,
     });
     this.newItemSaving.set(false);
     if (result.success) {
@@ -159,6 +226,17 @@ export class App implements OnInit, OnDestroy {
         this.accounts.set(profiles);
         const activeId = await window.electronAPI.account.getActive();
         this.activeAccountId.set(activeId);
+
+        // Handle ?newFromTemplate=<id> query param from templates page
+        const url = (e as NavigationEnd).urlAfterRedirects;
+        const match = url.match(/[?&]newFromTemplate=([^&]+)/);
+        if (match) {
+          const templateId = decodeURIComponent(match[1]);
+          // Strip the query param from the URL to avoid re-triggering
+          this.router.navigate(['/items'], { replaceUrl: true }).then(() => {
+            this.openNewItem(templateId);
+          });
+        }
       }
     });
 
@@ -187,6 +265,9 @@ export class App implements OnInit, OnDestroy {
 
       // Initialise clipboard auto-clear delay from persisted setting
       await this.clipboardService.init();
+
+      // Pre-load user-defined templates
+      await this.templateService.loadTemplates();
     }
 
     this._kbHandler = (e: KeyboardEvent) => {

@@ -1,7 +1,8 @@
 import { Injectable, signal, computed } from '@angular/core';
 import {
   VaultItem, Tag, BackupJob,
-  SyncResult, VaultStats, RecentActivity, ExpiryStatus
+  SyncResult, VaultStats, RecentActivity, ExpiryStatus,
+  VaultTemplate,
 } from '../shared/models';
 
 export type AuthStatus = 'unauthenticated' | 'locked' | 'unlocked';
@@ -119,6 +120,11 @@ declare global {
         getAll: () => Promise<Record<string, CustomIcon>>;
         set: (itemId: string, icon: CustomIcon) => Promise<boolean>;
         remove: (itemId: string) => Promise<boolean>;
+      };
+      template: {
+        getAll: () => Promise<VaultTemplate[]>;
+        save: (template: VaultTemplate) => Promise<boolean>;
+        delete: (id: string) => Promise<boolean>;
       };
       app: {
         getStore: (key: string) => Promise<unknown>;
@@ -368,8 +374,23 @@ export class VaultService {
     website?: string;
     notes?: string;
     folderId?: string | null;
+    templateId?: string | null;
+    templateFields?: { name: string; type: 'text' | 'hidden' | 'boolean' | 'url'; value: string }[];
   }): Promise<{ success: boolean; error?: string }> {
     if (!window.electronAPI) return { success: false, error: 'Not running in Electron' };
+
+    // Build Bitwarden custom fields: template marker + template field values
+    const fields: { name: string; value: string; type: number }[] = [];
+    if (data.templateId) {
+      fields.push({ name: '_dw_template', value: data.templateId, type: 0 });
+    }
+    if (data.templateFields) {
+      data.templateFields.forEach(f => {
+        // Bitwarden field types: 0 = text, 1 = hidden, 2 = boolean
+        const bwType = f.type === 'hidden' ? 1 : f.type === 'boolean' ? 2 : 0;
+        fields.push({ name: f.name, value: f.value, type: bwType });
+      });
+    }
 
     const bwItem: Record<string, unknown> = {
       organizationId: null,
@@ -379,7 +400,7 @@ export class VaultService {
       name: data.name,
       notes: data.notes || null,
       favorite: false,
-      fields: [],
+      fields,
       reprompt: 0,
     };
 

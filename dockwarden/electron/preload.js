@@ -60,6 +60,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getSetting: (key, defaultValue) => ipcRenderer.invoke('vault:get-setting', { key, defaultValue }),
     setSetting: (key, value) => ipcRenderer.invoke('vault:set-setting', { key, value }),
   },
+  template: {
+    getAll: () => ipcRenderer.invoke('template:get-all'),
+    save: (template) => ipcRenderer.invoke('template:save', { template }),
+    delete: (id) => ipcRenderer.invoke('template:delete', { id }),
+  },
   app: {
     getStore: (key) => ipcRenderer.invoke('app:get-store', key),
     setStore: (key, value) => ipcRenderer.invoke('app:set-store', { key, value }),

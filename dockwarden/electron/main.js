@@ -728,6 +728,27 @@ function setupIpcHandlers() {
     }
   });
 
+  // ─── Templates ─────────────────────────────────────────────────────────────
+
+  ipcMain.handle('template:get-all', () => {
+    return store.get('templates', []);
+  });
+
+  ipcMain.handle('template:save', (_, { template }) => {
+    const templates = store.get('templates', []);
+    const idx = templates.findIndex(t => t.id === template.id);
+    if (idx >= 0) templates[idx] = template;
+    else templates.push(template);
+    store.set('templates', templates);
+    return true;
+  });
+
+  ipcMain.handle('template:delete', (_, { id }) => {
+    const templates = store.get('templates', []).filter(t => t.id !== id);
+    store.set('templates', templates);
+    return true;
+  });
+
   // ─── Auto-Type (Windows only) ──────────────────────────────────────────────
 
   ipcMain.handle('autotype:send', async (_, { username, password, pressEnter }) => {

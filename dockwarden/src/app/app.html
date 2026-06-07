@@ -147,6 +147,13 @@
             <span class="nav-count nav-count-warn">{{ stats().expiringSoon }}</span>
           }
         </a>
+        <a routerLink="/templates" routerLinkActive="active" class="nav-item nav-item-sm">
+          <i class="fas fa-layer-group nav-icon-sm"></i>
+          <span class="nav-label">Templates</span>
+          @if (templateService.userTemplates().length > 0) {
+            <span class="nav-count">{{ templateService.userTemplates().length }}</span>
+          }
+        </a>
         <a routerLink="/backup" routerLinkActive="active" class="nav-item nav-item-sm">
           <i class="fas fa-database nav-icon-sm"></i>
           <span class="nav-label">Backups</span>
@@ -182,102 +189,205 @@
 ════════════════════════════════════════════════════════════════════════════ -->
 @if (newItemOpen()) {
   <div class="overlay-backdrop" (click)="closeNewItem()">
-    <div class="modal" (click)="$event.stopPropagation()">
-      <div class="modal-header">
-        <div class="modal-title">
-          <i class="fas fa-plus-circle"></i> New Vault Item
-        </div>
-        <button class="btn-icon" (click)="closeNewItem()"><i class="fas fa-xmark"></i></button>
-      </div>
 
-      <div class="modal-body">
-        <!-- Type selector -->
-        <div class="form-row">
-          <label class="form-label">Type</label>
-          <div class="type-tabs">
-            <button class="type-tab" [class.active]="newItemType() === 'login'" (click)="newItemType.set('login')">
-              <i class="fas fa-key"></i> Login
+    <!-- ── STEP 1: Template Picker ───────────────────────────────────────── -->
+    @if (newItemStep() === 'pick') {
+      <div class="modal modal-wide" (click)="$event.stopPropagation()">
+        <div class="modal-header">
+          <div class="modal-title">
+            <i class="fas fa-plus-circle"></i> New Vault Item
+          </div>
+          <button class="btn-icon" (click)="closeNewItem()"><i class="fas fa-xmark"></i></button>
+        </div>
+
+        <div class="modal-body">
+          <p class="picker-subtitle">Choose a template or start from a blank item type.</p>
+
+          <!-- Standard types -->
+          <div class="picker-section-label">STANDARD TYPES</div>
+          <div class="picker-grid">
+            <button class="picker-card" (click)="selectBlankType('login')">
+              <span class="picker-card-icon" style="background:#3b82f622;color:#3b82f6">🔑</span>
+              <span class="picker-card-name">Login</span>
+              <span class="picker-card-desc">Username, password, website</span>
             </button>
-            <button class="type-tab" [class.active]="newItemType() === 'note'" (click)="newItemType.set('note')">
-              <i class="fas fa-note-sticky"></i> Secure Note
+            <button class="picker-card" (click)="selectBlankType('note')">
+              <span class="picker-card-icon" style="background:#6b728022;color:#6b7280">📝</span>
+              <span class="picker-card-name">Secure Note</span>
+              <span class="picker-card-desc">Free-form encrypted text</span>
             </button>
           </div>
-        </div>
 
-        <!-- Name -->
-        <div class="form-row">
-          <label class="form-label">Name <span class="required">*</span></label>
-          <input class="form-input" placeholder="e.g. GitHub"
-                 [ngModel]="newItemName()" (ngModelChange)="newItemName.set($event)" />
-        </div>
-
-        @if (newItemType() === 'login') {
-          <!-- Username -->
-          <div class="form-row">
-            <label class="form-label">Username / Email</label>
-            <input class="form-input" placeholder="user@example.com"
-                   [ngModel]="newItemUsername()" (ngModelChange)="newItemUsername.set($event)" />
-          </div>
-
-          <!-- Password -->
-          <div class="form-row">
-            <label class="form-label">Password</label>
-            <div class="input-with-action">
-              <input class="form-input"
-                     [type]="newItemShowPw() ? 'text' : 'password'"
-                     placeholder="••••••••"
-                     [ngModel]="newItemPassword()" (ngModelChange)="newItemPassword.set($event)" />
-              <button class="btn-icon-sm" type="button" (click)="newItemShowPw.update(v => !v)" title="Toggle visibility">
-                <i class="fas" [class.fa-eye]="!newItemShowPw()" [class.fa-eye-slash]="newItemShowPw()"></i>
+          <!-- Built-in templates -->
+          <div class="picker-section-label" style="margin-top:16px">BUILT-IN TEMPLATES</div>
+          <div class="picker-grid">
+            @for (t of templateService.builtInTemplates(); track t.id) {
+              <button class="picker-card" (click)="selectTemplateAndProceed(t.id)">
+                <span class="picker-card-icon" [style.background]="t.color + '22'" [style.color]="t.color">{{ t.icon }}</span>
+                <span class="picker-card-name">{{ t.name }}</span>
+                <span class="picker-card-desc">{{ t.description }}</span>
+                <span class="picker-card-fields">{{ t.fields.length }} custom field{{ t.fields.length !== 1 ? 's' : '' }}</span>
               </button>
-            </div>
-          </div>
-
-          <!-- Website -->
-          <div class="form-row">
-            <label class="form-label">Website</label>
-            <input class="form-input" placeholder="https://example.com"
-                   [ngModel]="newItemWebsite()" (ngModelChange)="newItemWebsite.set($event)" />
-          </div>
-        }
-
-        <!-- Notes -->
-        <div class="form-row">
-          <label class="form-label">Notes</label>
-          <textarea class="form-input form-textarea" rows="3" placeholder="Optional notes…"
-                    [ngModel]="newItemNotes()" (ngModelChange)="newItemNotes.set($event)"></textarea>
-        </div>
-
-        <!-- Folder -->
-        <div class="form-row">
-          <label class="form-label">Folder</label>
-          <select class="form-input form-select"
-                  [ngModel]="newItemFolder()" (ngModelChange)="newItemFolder.set($event)">
-            <option value="">— No Folder —</option>
-            @for (f of folders(); track f.id) {
-              <option [value]="f.id">{{ f.name }}</option>
             }
-          </select>
+          </div>
+
+          <!-- User templates -->
+          @if (templateService.userTemplates().length > 0) {
+            <div class="picker-section-label" style="margin-top:16px">MY TEMPLATES</div>
+            <div class="picker-grid">
+              @for (t of templateService.userTemplates(); track t.id) {
+                <button class="picker-card" (click)="selectTemplateAndProceed(t.id)">
+                  <span class="picker-card-icon" [style.background]="t.color + '22'" [style.color]="t.color">{{ t.icon }}</span>
+                  <span class="picker-card-name">{{ t.name }}</span>
+                  <span class="picker-card-desc">{{ t.description }}</span>
+                  <span class="picker-card-fields">{{ t.fields.length }} custom field{{ t.fields.length !== 1 ? 's' : '' }}</span>
+                </button>
+              }
+            </div>
+          }
         </div>
 
-        @if (newItemError()) {
-          <div class="modal-error">
-            <i class="fas fa-circle-exclamation"></i> {{ newItemError() }}
-          </div>
-        }
+        <div class="modal-footer" style="justify-content:flex-end">
+          <button class="btn btn-ghost" (click)="closeNewItem()">Cancel</button>
+          <a routerLink="/templates" class="btn btn-ghost" (click)="closeNewItem()">
+            <i class="fas fa-plus"></i> Create Template
+          </a>
+        </div>
       </div>
+    }
 
-      <div class="modal-footer">
-        <button class="btn btn-ghost" (click)="closeNewItem()" [disabled]="newItemSaving()">Cancel</button>
-        <button class="btn btn-primary" (click)="saveNewItem()" [disabled]="newItemSaving()">
-          @if (newItemSaving()) {
-            <i class="fas fa-spinner fa-spin"></i> Saving…
-          } @else {
-            <i class="fas fa-plus"></i> Create Item
+    <!-- ── STEP 2: Item Form ─────────────────────────────────────────────── -->
+    @if (newItemStep() === 'form') {
+      <div class="modal" (click)="$event.stopPropagation()">
+        <div class="modal-header">
+          <button class="btn-icon" (click)="backToPicker()" title="Back to template picker">
+            <i class="fas fa-arrow-left"></i>
+          </button>
+          <div class="modal-title" style="flex:1;margin:0 8px">
+            @if (newItemSelectedTemplate()) {
+              <span class="modal-title-icon"
+                    [style.background]="newItemSelectedTemplate()!.color + '22'"
+                    [style.color]="newItemSelectedTemplate()!.color">
+                {{ newItemSelectedTemplate()!.icon }}
+              </span>
+              {{ newItemSelectedTemplate()!.name }}
+            } @else {
+              <i class="fas fa-plus-circle"></i>
+              {{ newItemType() === 'login' ? 'New Login' : 'New Secure Note' }}
+            }
+          </div>
+          <button class="btn-icon" (click)="closeNewItem()"><i class="fas fa-xmark"></i></button>
+        </div>
+
+        <div class="modal-body">
+          <!-- Name -->
+          <div class="form-row">
+            <label class="form-label">Name <span class="required">*</span></label>
+            <input class="form-input" placeholder="e.g. GitHub"
+                   [ngModel]="newItemName()" (ngModelChange)="newItemName.set($event)" />
+          </div>
+
+          @if (newItemType() === 'login') {
+            <!-- Username -->
+            <div class="form-row">
+              <label class="form-label">Username / Email</label>
+              <input class="form-input" placeholder="user@example.com"
+                     [ngModel]="newItemUsername()" (ngModelChange)="newItemUsername.set($event)" />
+            </div>
+
+            <!-- Password -->
+            <div class="form-row">
+              <label class="form-label">Password</label>
+              <div class="input-with-action">
+                <input class="form-input"
+                       [type]="newItemShowPw() ? 'text' : 'password'"
+                       placeholder="••••••••"
+                       [ngModel]="newItemPassword()" (ngModelChange)="newItemPassword.set($event)" />
+                <button class="btn-icon-sm" type="button" (click)="newItemShowPw.update(v => !v)" title="Toggle visibility">
+                  <i class="fas" [class.fa-eye]="!newItemShowPw()" [class.fa-eye-slash]="newItemShowPw()"></i>
+                </button>
+              </div>
+            </div>
+
+            <!-- Website -->
+            <div class="form-row">
+              <label class="form-label">Website</label>
+              <input class="form-input" placeholder="https://example.com"
+                     [ngModel]="newItemWebsite()" (ngModelChange)="newItemWebsite.set($event)" />
+            </div>
           }
-        </button>
+
+          <!-- Template custom fields -->
+          @if (newItemTemplateFields().length > 0) {
+            <div class="template-fields-divider">
+              <span>
+                <i class="fas fa-layer-group"></i>
+                {{ newItemSelectedTemplate()?.name ?? 'Template' }} Fields
+              </span>
+            </div>
+            @for (field of newItemTemplateFields(); track field.id) {
+              <div class="form-row">
+                <label class="form-label">
+                  {{ field.name }}
+                  @if (field.required) { <span class="required">*</span> }
+                </label>
+                @if (field.type === 'boolean') {
+                  <label class="checkbox-label">
+                    <input type="checkbox"
+                           [ngModel]="field.value === 'true'"
+                           (ngModelChange)="updateTemplateFieldValue(field.id, $event ? 'true' : 'false')" />
+                    {{ field.placeholder || field.name }}
+                  </label>
+                } @else {
+                  <input class="form-input"
+                         [type]="field.type === 'hidden' ? 'password' : field.type === 'url' ? 'url' : 'text'"
+                         [placeholder]="field.placeholder || ''"
+                         [ngModel]="field.value"
+                         (ngModelChange)="updateTemplateFieldValue(field.id, $event)" />
+                }
+              </div>
+            }
+          }
+
+          <!-- Notes -->
+          <div class="form-row">
+            <label class="form-label">Notes</label>
+            <textarea class="form-input form-textarea" rows="3" placeholder="Optional notes…"
+                      [ngModel]="newItemNotes()" (ngModelChange)="newItemNotes.set($event)"></textarea>
+          </div>
+
+          <!-- Folder -->
+          <div class="form-row">
+            <label class="form-label">Folder</label>
+            <select class="form-input form-select"
+                    [ngModel]="newItemFolder()" (ngModelChange)="newItemFolder.set($event)">
+              <option value="">— No Folder —</option>
+              @for (f of folders(); track f.id) {
+                <option [value]="f.id">{{ f.name }}</option>
+              }
+            </select>
+          </div>
+
+          @if (newItemError()) {
+            <div class="modal-error">
+              <i class="fas fa-circle-exclamation"></i> {{ newItemError() }}
+            </div>
+          }
+        </div>
+
+        <div class="modal-footer">
+          <button class="btn btn-ghost" (click)="closeNewItem()" [disabled]="newItemSaving()">Cancel</button>
+          <button class="btn btn-primary" (click)="saveNewItem()" [disabled]="newItemSaving()">
+            @if (newItemSaving()) {
+              <i class="fas fa-spinner fa-spin"></i> Saving…
+            } @else {
+              <i class="fas fa-plus"></i> Create Item
+            }
+          </button>
+        </div>
       </div>
-    </div>
+    }
+
   </div>
 
   <!-- Clipboard Auto-Clear Toast -->
