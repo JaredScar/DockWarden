@@ -121,6 +121,12 @@ declare global {
         set: (itemId: string, icon: CustomIcon) => Promise<boolean>;
         remove: (itemId: string) => Promise<boolean>;
       };
+      folder: {
+        create: (name: string) => Promise<{ success: boolean; folder?: Folder; error?: string }>;
+        rename: (id: string, name: string) => Promise<{ success: boolean; error?: string }>;
+        delete: (id: string) => Promise<{ success: boolean; error?: string }>;
+        move: (folders: Folder[], oldPath: string, newPath: string) => Promise<{ success: boolean; error?: string }>;
+      };
       template: {
         getAll: () => Promise<VaultTemplate[]>;
         save: (template: VaultTemplate) => Promise<boolean>;
@@ -459,6 +465,52 @@ export class VaultService {
 
   getItemsByFolder(folder: string): VaultItem[] {
     return this._items().filter(i => i.folderId === folder);
+  }
+
+  // ── Folder CRUD ────────────────────────────────────────────────────────────
+
+  async createFolder(name: string): Promise<{ success: boolean; folder?: Folder; error?: string }> {
+    if (!window.electronAPI) return { success: false, error: 'Not running in Electron' };
+    const result = await window.electronAPI.folder.create(name);
+    if (result.success && result.folder) {
+      this._folders.update(list => [...list, result.folder!]);
+    }
+    return result;
+  }
+
+  async renameFolder(id: string, newName: string): Promise<{ success: boolean; error?: string }> {
+    if (!window.electronAPI) return { success: false, error: 'Not running in Electron' };
+    const result = await window.electronAPI.folder.rename(id, newName);
+    if (result.success) {
+      this._folders.update(list => list.map(f => f.id === id ? { ...f, name: newName } : f));
+    }
+    return result;
+  }
+
+  async deleteFolder(id: string): Promise<{ success: boolean; error?: string }> {
+    if (!window.electronAPI) return { success: false, error: 'Not running in Electron' };
+    const result = await window.electronAPI.folder.delete(id);
+    if (result.success) {
+      this._folders.update(list => list.filter(f => f.id !== id));
+    }
+    return result;
+  }
+
+  async moveFolderTree(oldPath: string, newPath: string): Promise<{ success: boolean; error?: string }> {
+    if (!window.electronAPI) return { success: false, error: 'Not running in Electron' };
+    const allFolders = this._folders();
+    const result = await window.electronAPI.folder.move(allFolders, oldPath, newPath);
+    if (result.success) {
+      // Update local signal: rename all affected paths
+      this._folders.update(list => list.map(f => {
+        if (f.name === oldPath) return { ...f, name: newPath };
+        if (f.name.startsWith(oldPath + '/')) {
+          return { ...f, name: newPath + f.name.slice(oldPath.length) };
+        }
+        return f;
+      }));
+    }
+    return result;
   }
 
   // ── Expiry policies ────────────────────────────────────────────────────────

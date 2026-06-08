@@ -6,6 +6,7 @@ import { Subscription } from 'rxjs';
 import { VaultService, CustomIcon } from '../../core/vault.service';
 import { SmartViewService } from '../../core/smart-view.service';
 import { ClipboardService } from '../../core/clipboard.service';
+import { FolderService } from '../../core/folder.service';
 import { VaultItem } from '../../shared/models';
 import Fuse from 'fuse.js';
 
@@ -24,6 +25,7 @@ export class ItemsComponent implements OnInit, OnDestroy {
   readonly vaultService = inject(VaultService);
   readonly clipboardService = inject(ClipboardService);
   private readonly smartViewService = inject(SmartViewService);
+  private readonly folderService = inject(FolderService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private paramSub?: Subscription;
@@ -116,7 +118,10 @@ export class ItemsComponent implements OnInit, OnDestroy {
         ? base.filter(i => tags.some(t => i.tags.includes(t)))
         : base.filter(i => tags.every(t => i.tags.includes(t)));
     } else if (params['folder']) {
-      base = base.filter(i => i.folderId === params['folder']);
+      // Include items in this folder AND all descendant folders (nested tree support)
+      const folderId = params['folder'] as string;
+      const subtreeIds = this.folderService.getSubtreeIds(folderId);
+      base = base.filter(i => i.folderId && subtreeIds.has(i.folderId));
     }
 
     if (!q) return base;
@@ -139,7 +144,11 @@ export class ItemsComponent implements OnInit, OnDestroy {
     if (params['tag']) return `#${params['tag']}`;
     if (params['folder']) {
       const folder = this.vaultService.folders().find(f => f.id === params['folder']);
-      return folder ? folder.name : 'Folder';
+      if (folder) {
+        const parts = folder.name.split('/');
+        return parts[parts.length - 1];
+      }
+      return 'Folder';
     }
     return 'All Items';
   });
@@ -405,6 +414,11 @@ export class ItemsComponent implements OnInit, OnDestroy {
 
   getInitials(name: string): string {
     return name.split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase();
+  }
+
+  onItemDragStart(event: DragEvent, itemId: string): void {
+    event.dataTransfer?.setData('dw-item-id', itemId);
+    if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
   }
 
   getExpiryBadge(item: VaultItem): { label: string; class: string } | null {

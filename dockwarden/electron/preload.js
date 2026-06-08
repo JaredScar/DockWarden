@@ -60,6 +60,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getSetting: (key, defaultValue) => ipcRenderer.invoke('vault:get-setting', { key, defaultValue }),
     setSetting: (key, value) => ipcRenderer.invoke('vault:set-setting', { key, value }),
   },
+  folder: {
+    create: (name) => ipcRenderer.invoke('folder:create', { name }),
+    rename: (id, name) => ipcRenderer.invoke('folder:rename', { id, name }),
+    delete: (id) => ipcRenderer.invoke('folder:delete', { id }),
+    move: (folders, oldPath, newPath) => ipcRenderer.invoke('folder:move', { folders, oldPath, newPath }),
+  },
   template: {
     getAll: () => ipcRenderer.invoke('template:get-all'),
     save: (template) => ipcRenderer.invoke('template:save', { template }),

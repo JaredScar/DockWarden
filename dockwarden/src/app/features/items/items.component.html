@@ -82,7 +82,10 @@
       @for (group of groupedItems(); track group[0]) {
         <div class="group-letter">{{ group[0] }}</div>
         @for (item of group[1]; track item.id) {
-          <div class="item-row" [class.selected]="selectedItem()?.id === item.id" (click)="selectItem(item)">
+          <div class="item-row" [class.selected]="selectedItem()?.id === item.id"
+               (click)="selectItem(item)"
+               draggable="true"
+               (dragstart)="onItemDragStart($event, item.id)">
             @if (getCustomIcon(item.id); as ci) {
               @if (ci.type === 'emoji') {
                 <div class="item-avatar item-avatar-emoji">{{ ci.value }}</div>

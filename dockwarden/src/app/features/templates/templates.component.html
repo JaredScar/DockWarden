@@ -276,45 +276,66 @@
               }
 
               @for (field of draft()!.fields; track field.id; let idx = $index) {
-                <div class="field-edit-row">
-                  <div class="field-row-controls">
-                    <button class="btn-icon-xs" (click)="moveField(idx, -1)" [disabled]="idx === 0" title="Move up">
-                      <i class="fas fa-chevron-up"></i>
-                    </button>
-                    <button class="btn-icon-xs" (click)="moveField(idx, 1)" [disabled]="idx === draft()!.fields.length - 1" title="Move down">
-                      <i class="fas fa-chevron-down"></i>
-                    </button>
-                  </div>
-
-                  <div class="field-edit-body">
-                    <div class="field-edit-top">
-                      <input class="form-input field-name-input" placeholder="Field name (e.g. Host)"
-                             [ngModel]="field.name" (ngModelChange)="updateField(field.id, 'name', $event)" />
-                      <select class="form-input form-select field-type-select"
-                              [ngModel]="field.type" (ngModelChange)="updateField(field.id, 'type', $event)">
-                        @for (ft of fieldTypes; track ft.value) {
-                          <option [value]="ft.value">{{ ft.label }}</option>
-                        }
-                      </select>
-                      <label class="checkbox-label required-check">
-                        <input type="checkbox" [ngModel]="field.required"
-                               (ngModelChange)="updateField(field.id, 'required', $event)" />
-                        Required
-                      </label>
-                    </div>
-                    <div class="field-edit-bottom">
-                      @if (field.type !== 'hidden' && field.type !== 'boolean') {
-                        <input class="form-input" placeholder="Default value"
-                               [ngModel]="field.defaultValue" (ngModelChange)="updateField(field.id, 'defaultValue', $event)" />
-                      }
-                      <input class="form-input" placeholder="Placeholder hint"
-                             [ngModel]="field.placeholder" (ngModelChange)="updateField(field.id, 'placeholder', $event)" />
+                <div class="field-card">
+                  <!-- Card header: number + order controls + remove -->
+                  <div class="field-card-header">
+                    <span class="field-card-num">Field {{ idx + 1 }}</span>
+                    <div class="field-card-actions">
+                      <button class="btn-icon-xs" (click)="moveField(idx, -1)" [disabled]="idx === 0" title="Move up">
+                        <i class="fas fa-chevron-up"></i>
+                      </button>
+                      <button class="btn-icon-xs" (click)="moveField(idx, 1)" [disabled]="idx === draft()!.fields.length - 1" title="Move down">
+                        <i class="fas fa-chevron-down"></i>
+                      </button>
+                      <button class="btn-icon-xs btn-icon-danger" (click)="removeField(field.id)" title="Remove field">
+                        <i class="fas fa-xmark"></i>
+                      </button>
                     </div>
                   </div>
 
-                  <button class="btn-icon-xs btn-icon-danger" (click)="removeField(field.id)" title="Remove field">
-                    <i class="fas fa-xmark"></i>
-                  </button>
+                  <!-- Card body: name + type + optional default/hint + required -->
+                  <div class="field-card-body">
+                    <!-- Row 1: name + type -->
+                    <div class="field-grid field-grid-name-type">
+                      <div class="form-row">
+                        <label class="form-label">Field Name</label>
+                        <input class="form-input" placeholder="e.g. Host, API Key, Port…"
+                               [ngModel]="field.name" (ngModelChange)="updateField(field.id, 'name', $event)" />
+                      </div>
+                      <div class="form-row">
+                        <label class="form-label">Type</label>
+                        <select class="form-input form-select"
+                                [ngModel]="field.type" (ngModelChange)="updateField(field.id, 'type', $event)">
+                          @for (ft of fieldTypes; track ft.value) {
+                            <option [value]="ft.value">{{ ft.label }}</option>
+                          }
+                        </select>
+                      </div>
+                    </div>
+
+                    <!-- Row 2: default + hint (only for text-based types) -->
+                    @if (field.type !== 'hidden' && field.type !== 'boolean') {
+                      <div class="field-grid field-grid-2">
+                        <div class="form-row">
+                          <label class="form-label">Default Value</label>
+                          <input class="form-input" placeholder="Optional default"
+                                 [ngModel]="field.defaultValue" (ngModelChange)="updateField(field.id, 'defaultValue', $event)" />
+                        </div>
+                        <div class="form-row">
+                          <label class="form-label">Placeholder Hint</label>
+                          <input class="form-input" placeholder="Shown in the input field"
+                                 [ngModel]="field.placeholder" (ngModelChange)="updateField(field.id, 'placeholder', $event)" />
+                        </div>
+                      </div>
+                    }
+
+                    <!-- Required toggle -->
+                    <label class="checkbox-label">
+                      <input type="checkbox" [ngModel]="field.required"
+                             (ngModelChange)="updateField(field.id, 'required', $event)" />
+                      Mark as required
+                    </label>
+                  </div>
                 </div>
               }
             </div>

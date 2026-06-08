@@ -492,44 +492,6 @@
   margin-top: 6px !important;
 }
 
-.field-edit-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  padding: 10px 0;
-  border-top: 1px solid var(--border);
-}
-
-.field-row-controls {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding-top: 2px;
-}
-
-.field-edit-body {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.field-edit-top {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.field-name-input { flex: 1; }
-
-.field-type-select { width: 120px; flex-shrink: 0; }
-
-.required-check { flex-shrink: 0; }
-
-.field-edit-bottom {
-  display: flex;
-  gap: 8px;
-}
 
 .btn-icon-xs {
   width: 22px;
@@ -557,6 +519,177 @@
 
 // Export textarea
 .export-textarea { min-height: 200px; font-family: monospace; font-size: 12px; }
+
+// ─── Form utilities (app.scss styles are component-scoped; define them here) ──
+.form-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+
+  .required { color: var(--accent-red); margin-left: 2px; }
+}
+
+.form-input {
+  width: 100%;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 13.5px;
+  padding: 8px 12px;
+  outline: none;
+  transition: border-color var(--transition), box-shadow var(--transition);
+
+  &:focus {
+    border-color: var(--accent-blue);
+    box-shadow: 0 0 0 3px rgba(47, 129, 247, 0.12);
+  }
+  &::placeholder { color: var(--text-muted); }
+}
+
+.form-textarea {
+  resize: vertical;
+  min-height: 80px;
+  line-height: 1.5;
+}
+
+.form-select {
+  cursor: pointer;
+}
+
+.type-tabs {
+  display: flex;
+  gap: 6px;
+}
+
+.type-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all var(--transition);
+
+  &:hover { border-color: var(--text-muted); color: var(--text-primary); }
+
+  &.active {
+    border-color: var(--accent-blue);
+    background: rgba(47, 129, 247, 0.12);
+    color: var(--accent-blue);
+  }
+}
+
+.checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+
+  input[type="checkbox"] { accent-color: var(--accent-blue); cursor: pointer; width: 14px; height: 14px; }
+  &:hover { color: var(--text-primary); }
+}
+
+.required { color: var(--accent-red); }
+
+// ── Modal classes (used in export/import modals) ───────────────────────────────
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.modal-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  i { color: var(--accent-blue); }
+}
+
+.modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+// ── Field cards (redesigned editor) ───────────────────────────────────────────
+.field-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  transition: border-color var(--transition);
+
+  &:hover { border-color: var(--text-muted); }
+
+  & + & { margin-top: 8px; }
+}
+
+.field-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 10px 7px 14px;
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border);
+}
+
+.field-card-num {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.field-card-actions { display: flex; gap: 3px; }
+
+.field-card-body {
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.field-grid {
+  display: grid;
+  gap: 12px;
+
+  &-name-type { grid-template-columns: 1fr 150px; }
+  &-2 { grid-template-columns: 1fr 1fr; }
+}
 
 // ─── Button variants ─────────────────────────────────────────────────────────
 .btn-sm { padding: 5px 12px; font-size: 12px; }

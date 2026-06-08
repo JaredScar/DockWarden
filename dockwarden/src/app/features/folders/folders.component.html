@@ -1,0 +1,260 @@
+<div class="folders-page">
+
+  <!-- ── Page header ──────────────────────────────────────────────────────── -->
+  <div class="page-header">
+    <div class="page-header-left">
+      <h1 class="page-title"><i class="fas fa-folder-tree"></i> Folder Manager</h1>
+      <p class="page-subtitle">
+        Create nested folders, rename, reorder by dragging, and move items between folders.
+        Bitwarden stores nested folders as <code>Parent/Child</code> — DockWarden makes this visual.
+      </p>
+    </div>
+    <div class="page-header-actions">
+      <button class="btn btn-ghost" (click)="folderService.expandAll()">
+        <i class="fas fa-expand"></i> Expand All
+      </button>
+      <button class="btn btn-ghost" (click)="folderService.collapseAll()">
+        <i class="fas fa-compress"></i> Collapse All
+      </button>
+      <button class="btn btn-primary" (click)="startNew(null)">
+        <i class="fas fa-folder-plus"></i> New Folder
+      </button>
+    </div>
+  </div>
+
+  <!-- ── Two-column layout ────────────────────────────────────────────────── -->
+  <div class="folders-layout">
+
+    <!-- Left: folder tree -->
+    <aside class="folder-tree-panel">
+
+      <!-- New root folder form -->
+      @if (newOpen() && newParentPath() === null) {
+        <div class="new-folder-form">
+          <div class="form-row">
+            <label class="form-label">New Root Folder</label>
+            <input class="form-input" autofocus placeholder="e.g. Personal"
+                   [ngModel]="newName()" (ngModelChange)="newName.set($event)"
+                   (keydown.enter)="commitNew()" (keydown.escape)="cancelNew()" />
+          </div>
+          @if (newError()) {
+            <div class="form-error">{{ newError() }}</div>
+          }
+          <div class="form-actions">
+            <button class="btn btn-ghost btn-sm" (click)="cancelNew()" [disabled]="newSaving()">Cancel</button>
+            <button class="btn btn-primary btn-sm" (click)="commitNew()" [disabled]="newSaving() || !newName().trim()">
+              @if (newSaving()) { <i class="fas fa-spinner fa-spin"></i> } @else { <i class="fas fa-check"></i> }
+              Create
+            </button>
+          </div>
+        </div>
+      }
+
+      @if (folderTreeRows().length === 0) {
+        <div class="tree-empty">
+          <i class="fas fa-folder-open" style="font-size:32px;color:var(--text-muted);margin-bottom:10px"></i>
+          <p>No folders yet. Click <strong>New Folder</strong> to create your first one.</p>
+        </div>
+      }
+
+      <!-- Tree rows -->
+      @for (row of folderTreeRows(); track row.fullPath) {
+        <div class="fm-tree-row"
+             [class.fm-selected]="selectedFolderPath() === row.fullPath"
+             [class.fm-dragging]="dragSourcePath() === row.fullPath"
+             [class.fm-drag-over]="dragOverPath() === row.fullPath"
+             [style.padding-left.px]="12 + row.depth * 20"
+             draggable="true"
+             (dragstart)="onDragStart($event, row.fullPath)"
+             (dragover)="onDragOver($event, row.fullPath)"
+             (dragleave)="onDragLeave()"
+             (drop)="onDrop($event, row)"
+             (dragend)="onDragEnd()"
+             (click)="selectFolder(row.fullPath)">
+
+          <!-- Expand/collapse -->
+          <button class="fm-chevron" [class.expanded]="row.expanded"
+                  [class.invisible]="!row.hasChildren"
+                  (click)="folderService.toggle(row.fullPath); $event.stopPropagation()">
+            <i class="fas fa-chevron-right"></i>
+          </button>
+
+          <!-- Drag handle -->
+          <i class="fas fa-grip-vertical fm-drag-handle" title="Drag to reparent"></i>
+
+          <!-- Folder icon -->
+          <i class="{{ row.expanded && row.hasChildren ? 'fas fa-folder-open' : 'fas fa-folder' }} fm-folder-icon"></i>
+
+          <!-- Inline rename or label -->
+          @if (renamingPath() === row.fullPath) {
+            <input class="fm-inline-input" autofocus
+                   [ngModel]="renameValue()" (ngModelChange)="renameValue.set($event)"
+                   (keydown.enter)="commitRename()" (keydown.escape)="cancelRename()"
+                   (click)="$event.stopPropagation()" />
+            @if (renameSaving()) {
+              <i class="fas fa-spinner fa-spin fm-spinner"></i>
+            } @else {
+              <button class="fm-inline-btn fm-confirm" (click)="commitRename(); $event.stopPropagation()">
+                <i class="fas fa-check"></i>
+              </button>
+              <button class="fm-inline-btn" (click)="cancelRename(); $event.stopPropagation()">
+                <i class="fas fa-xmark"></i>
+              </button>
+            }
+          } @else {
+            <span class="fm-label">{{ row.label }}</span>
+            <span class="fm-count-badge">{{ row.totalCount }}</span>
+
+            <!-- Row action buttons (hover) -->
+            <div class="fm-row-actions">
+              <button class="fm-action-btn" title="Add subfolder" (click)="startNew(row.fullPath, $event)">
+                <i class="fas fa-folder-plus"></i>
+              </button>
+              <button class="fm-action-btn" title="Rename" (click)="startRename(row, $event)">
+                <i class="fas fa-pencil"></i>
+              </button>
+              <button class="fm-action-btn" title="Move to…" (click)="startMove(row.fullPath, $event)">
+                <i class="fas fa-arrow-right-arrow-left"></i>
+              </button>
+              <button class="fm-action-btn fm-danger" title="Delete" (click)="confirmDelete(row.fullPath, $event)">
+                <i class="fas fa-trash"></i>
+              </button>
+            </div>
+          }
+        </div>
+
+        <!-- Rename error -->
+        @if (renamingPath() === row.fullPath && renameError()) {
+          <div class="fm-error-row" [style.padding-left.px]="12 + row.depth * 20">{{ renameError() }}</div>
+        }
+
+        <!-- Move form (reparent) -->
+        @if (movingPath() === row.fullPath) {
+          <div class="fm-move-form" [style.padding-left.px]="12 + row.depth * 20">
+            <label class="form-label">Move "<strong>{{ row.label }}</strong>" into:</label>
+            <select class="form-input form-select"
+                    [ngModel]="moveTargetPath()" (ngModelChange)="moveTargetPath.set($event)">
+              <option value="">— Root (top level) —</option>
+              @for (f of getParentOptions(row.fullPath); track f.id) {
+                <option [value]="f.name">{{ f.name }}</option>
+              }
+            </select>
+            @if (moveError()) { <div class="form-error">{{ moveError() }}</div> }
+            <div class="form-actions">
+              <button class="btn btn-ghost btn-sm" (click)="cancelMove()" [disabled]="moveSaving()">Cancel</button>
+              <button class="btn btn-primary btn-sm" (click)="commitMove()" [disabled]="moveSaving()">
+                @if (moveSaving()) { <i class="fas fa-spinner fa-spin"></i> } @else { Move }
+              </button>
+            </div>
+          </div>
+        }
+
+        <!-- Delete confirm -->
+        @if (deleteConfirmPath() === row.fullPath) {
+          <div class="fm-delete-confirm" [style.padding-left.px]="12 + row.depth * 20">
+            <i class="fas fa-triangle-exclamation" style="color:var(--accent-red)"></i>
+            Delete <strong>{{ row.label }}</strong>? Items inside won't be deleted — they'll become unfiled.
+            <button class="btn btn-danger-sm" (click)="commitDelete(row.fullPath)" [disabled]="deleteSaving()">
+              @if (deleteSaving()) { <i class="fas fa-spinner fa-spin"></i> } @else { Delete }
+            </button>
+            <button class="btn btn-ghost btn-sm" (click)="cancelDelete()">Cancel</button>
+          </div>
+        }
+
+        <!-- New subfolder form (inline under parent) -->
+        @if (newOpen() && newParentPath() === row.fullPath) {
+          <div class="new-folder-form" [style.padding-left.px]="12 + (row.depth + 1) * 20">
+            <input class="form-input" autofocus [placeholder]="'Subfolder of ' + row.label + '…'"
+                   [ngModel]="newName()" (ngModelChange)="newName.set($event)"
+                   (keydown.enter)="commitNew()" (keydown.escape)="cancelNew()" />
+            @if (newError()) { <div class="form-error">{{ newError() }}</div> }
+            <div class="form-actions">
+              <button class="btn btn-ghost btn-sm" (click)="cancelNew()">Cancel</button>
+              <button class="btn btn-primary btn-sm" (click)="commitNew()" [disabled]="newSaving() || !newName().trim()">
+                @if (newSaving()) { <i class="fas fa-spinner fa-spin"></i> } @else { Create }
+              </button>
+            </div>
+          </div>
+        }
+      }
+    </aside>
+
+    <!-- Right: folder detail -->
+    <section class="folder-detail-panel">
+
+      @if (!selectedFolderPath()) {
+        <div class="detail-placeholder">
+          <i class="fas fa-hand-pointer" style="font-size:32px;color:var(--text-muted);margin-bottom:12px"></i>
+          <p>Select a folder to view its contents</p>
+          <p class="detail-placeholder-hint">
+            Drag folder rows to reparent them. Drag vault items from the Vault browser onto folder rows in the sidebar to move them.
+          </p>
+        </div>
+      } @else {
+        <!-- Folder detail header -->
+        <div class="detail-header">
+          <i class="fas fa-folder-open detail-folder-icon"></i>
+          <div class="detail-header-info">
+            <h2 class="detail-folder-name">{{ selectedFolderPath() }}</h2>
+            <div class="detail-folder-meta">
+              <span class="meta-chip"><i class="fas fa-list"></i> {{ selectedFolderDirectItems().length }} direct</span>
+              <span class="meta-chip"><i class="fas fa-sitemap"></i> {{ selectedFolderItems().length }} total (inc. subfolders)</span>
+            </div>
+          </div>
+          @if (selectedFolder()) {
+            <button class="btn btn-primary" (click)="navigateToFolder(selectedFolder()!.id)">
+              <i class="fas fa-arrow-up-right-from-square"></i> Browse Items
+            </button>
+          }
+        </div>
+
+        <!-- Items in this folder -->
+        @if (selectedFolderItems().length === 0) {
+          <div class="detail-empty-items">No items in this folder or its subfolders.</div>
+        } @else {
+          <div class="detail-items-header">
+            <span class="detail-items-title">Items</span>
+            <span class="detail-items-count">{{ selectedFolderItems().length }}</span>
+          </div>
+          <div class="detail-items-list">
+            @for (item of selectedFolderItems(); track item.id) {
+              <div class="detail-item-row"
+                   draggable="true"
+                   (dragstart)="$event.dataTransfer?.setData('dw-item-id', item.id)">
+                <i [class]="getItemTypeIcon(item.type)" class="detail-item-icon"></i>
+                <div class="detail-item-info">
+                  <span class="detail-item-name">{{ item.name }}</span>
+                  @if (item.username) {
+                    <span class="detail-item-sub">{{ item.username }}</span>
+                  }
+                </div>
+                @if (itemMovingId() === item.id) {
+                  <div class="item-move-row">
+                    <select class="form-input form-select item-move-select"
+                            [ngModel]="itemMoveTargetId()" (ngModelChange)="itemMoveTargetId.set($event)">
+                      <option value="">— No Folder —</option>
+                      @for (f of allFolders(); track f.id) {
+                        <option [value]="f.id">{{ f.name }}</option>
+                      }
+                    </select>
+                    <button class="fm-inline-btn fm-confirm" (click)="commitItemMove()" [disabled]="itemMoveSaving()">
+                      <i class="fas fa-check"></i>
+                    </button>
+                    <button class="fm-inline-btn" (click)="cancelItemMove()">
+                      <i class="fas fa-xmark"></i>
+                    </button>
+                  </div>
+                } @else {
+                  <button class="fm-action-btn" title="Move to folder" (click)="startItemMove(item.id)">
+                    <i class="fas fa-folder-arrow-up"></i>
+                  </button>
+                }
+              </div>
+            }
+          </div>
+        }
+      }
+
+    </section>
+  </div>
+</div>

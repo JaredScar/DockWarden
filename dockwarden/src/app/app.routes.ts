@@ -80,5 +80,10 @@ export const routes: Routes = [
     loadComponent: () => import('./features/templates/templates.component').then(m => m.TemplatesComponent),
     canActivate: [authGuard],
   },
+  {
+    path: 'folders',
+    loadComponent: () => import('./features/folders/folders.component').then(m => m.FoldersComponent),
+    canActivate: [authGuard],
+  },
   { path: '**', redirectTo: 'unlock' },
 ];

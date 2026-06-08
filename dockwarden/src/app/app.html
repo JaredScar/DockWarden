@@ -67,23 +67,185 @@
         </a>
       </nav>
 
-      <!-- Categories -->
+      <!-- Categories: special items + folder tree -->
       <div class="sidebar-section">
-        <div class="section-label">CATEGORIES</div>
-        @for (folder of sidebarFolders(); track folder.id) {
-          <a [routerLink]="['/items']"
-             [queryParams]="getFolderQueryParams(folder.id)"
-             routerLinkActive="active"
-             [routerLinkActiveOptions]="{ exact: true }"
+        <div class="section-label" style="display:flex;align-items:center;justify-content:space-between">
+          FOLDERS
+          <button class="folder-add-root-btn" title="New root folder" (click)="startNewSubfolder(null, $event)">
+            <i class="fas fa-plus"></i>
+          </button>
+        </div>
+
+        <!-- Favorites -->
+        @if (sidebarFavCount() > 0) {
+          <a [routerLink]="['/items']" [queryParams]="{ favorites: 1 }"
+             routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }"
              class="nav-item nav-item-sm">
-            <i class="{{ folder.icon }} nav-icon-sm"></i>
-            <span class="nav-label">{{ folder.label }}</span>
-            <span class="nav-count">{{ folder.count }}</span>
+            <i class="fas fa-star nav-icon-sm" style="color:var(--accent-yellow)"></i>
+            <span class="nav-label">Favorites</span>
+            <span class="nav-count">{{ sidebarFavCount() }}</span>
           </a>
         }
-        @if (sidebarFolders().length === 0) {
+
+        <!-- No Folder -->
+        @if (sidebarNoFolderCount() > 0) {
+          <a [routerLink]="['/items']" [queryParams]="{ noFolder: 1 }"
+             routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }"
+             class="nav-item nav-item-sm">
+            <i class="fas fa-inbox nav-icon-sm"></i>
+            <span class="nav-label">No Folder</span>
+            <span class="nav-count">{{ sidebarNoFolderCount() }}</span>
+          </a>
+        }
+
+        <!-- Folder tree rows -->
+        @for (row of folderTreeRows(); track row.fullPath) {
+
+          <!-- Delete confirmation bar (only for real BW folders) -->
+          @if (folderDeleteConfirmPath() === row.fullPath && row.id) {
+            <div class="folder-delete-confirm" [style.padding-left.px]="10 + row.depth * 12">
+              <span>Delete <strong>{{ row.label }}</strong>?</span>
+              <button class="folder-confirm-btn folder-confirm-yes" (click)="doFolderDelete(row.fullPath)" [disabled]="folderDeleteSaving()">
+                <i class="fas fa-check"></i>
+              </button>
+              <button class="folder-confirm-btn" (click)="cancelFolderDelete()">
+                <i class="fas fa-xmark"></i>
+              </button>
+            </div>
+          }
+
+          <!-- Inline rename row -->
+          @if (folderRenamingPath() === row.fullPath) {
+            <div class="folder-rename-row" [style.padding-left.px]="10 + row.depth * 12">
+              <i class="fas fa-folder-open" style="color:var(--accent-blue);font-size:12px;flex-shrink:0"></i>
+              <input class="folder-inline-input" autofocus
+                     [ngModel]="folderRenameValue()" (ngModelChange)="folderRenameValue.set($event)"
+                     (keydown.enter)="commitFolderRename()"
+                     (keydown.escape)="cancelFolderRename()" />
+              @if (folderRenameSaving()) {
+                <i class="fas fa-spinner fa-spin" style="font-size:11px;color:var(--text-muted)"></i>
+              } @else {
+                <button class="folder-confirm-btn folder-confirm-yes" (click)="commitFolderRename()" title="Save">
+                  <i class="fas fa-check"></i>
+                </button>
+                <button class="folder-confirm-btn" (click)="cancelFolderRename()" title="Cancel">
+                  <i class="fas fa-xmark"></i>
+                </button>
+              }
+            </div>
+            @if (folderRenameError()) {
+              <div class="folder-inline-error" [style.padding-left.px]="10 + row.depth * 12">{{ folderRenameError() }}</div>
+            }
+
+          <!-- Normal folder row -->
+          } @else if (folderDeleteConfirmPath() !== row.fullPath) {
+            <div class="folder-tree-row nav-item-sm"
+                 [class.folder-drag-over]="folderDragOverId() === row.id"
+                 [style.padding-left.px]="8 + row.depth * 12"
+                 (dragover)="onFolderDragOver($event, row.id)"
+                 (dragleave)="onFolderDragLeave()"
+                 (drop)="onFolderDrop($event, row.id)"
+                 (click)="closeFolderMenu()">
+
+              <!-- Expand/collapse chevron -->
+              <button class="folder-chevron" [class.expanded]="row.expanded"
+                      [class.invisible]="!row.hasChildren"
+                      (click)="toggleFolder(row.fullPath); $event.stopPropagation()"
+                      title="{{ row.expanded ? 'Collapse' : 'Expand' }}">
+                <i class="fas fa-chevron-right"></i>
+              </button>
+
+              <!-- Folder link -->
+              <a [routerLink]="['/items']" [queryParams]="{ folder: row.id }"
+                 routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }"
+                 class="folder-tree-link"
+                 [class.has-no-id]="!row.id"
+                 (click)="$event.stopPropagation()">
+                <i class="{{ row.expanded && row.hasChildren ? 'fas fa-folder-open' : 'fas fa-folder' }} folder-icon"></i>
+                <span class="folder-label">{{ row.label }}</span>
+                @if (row.totalCount > 0) {
+                  <span class="nav-count">{{ row.totalCount }}</span>
+                }
+              </a>
+
+              <!-- Hover action buttons -->
+              <div class="folder-actions">
+                <button class="folder-action-btn" title="New subfolder" (click)="startNewSubfolder(row.fullPath, $event)">
+                  <i class="fas fa-plus"></i>
+                </button>
+                <button class="folder-action-btn" title="More options" (click)="openFolderMenu(row.fullPath, $event)">
+                  <i class="fas fa-ellipsis"></i>
+                </button>
+              </div>
+
+              <!-- ⋮ Context menu -->
+              @if (folderMenuPath() === row.fullPath) {
+                <div class="folder-ctx-menu">
+                  <button class="folder-ctx-item" (click)="startFolderRename(row.fullPath)">
+                    <i class="fas fa-pencil"></i> Rename
+                  </button>
+                  @if (row.id) {
+                    <div class="folder-ctx-divider"></div>
+                    <button class="folder-ctx-item folder-ctx-danger" (click)="confirmFolderDelete(row.fullPath)">
+                      <i class="fas fa-trash"></i> Delete
+                    </button>
+                  }
+                </div>
+              }
+            </div>
+          }
+
+          <!-- New subfolder input row (inserted directly after this parent) -->
+          @if (folderNewParentPath() === row.fullPath && row.id !== null) {
+            <div class="folder-rename-row" [style.padding-left.px]="10 + (row.depth + 1) * 12">
+              <i class="fas fa-folder-plus" style="color:var(--accent-blue);font-size:12px;flex-shrink:0"></i>
+              <input class="folder-inline-input" autofocus placeholder="Folder name…"
+                     [ngModel]="folderNewName()" (ngModelChange)="folderNewName.set($event)"
+                     (keydown.enter)="commitNewSubfolder()"
+                     (keydown.escape)="cancelNewSubfolder()" />
+              @if (folderNewSaving()) {
+                <i class="fas fa-spinner fa-spin" style="font-size:11px;color:var(--text-muted)"></i>
+              } @else {
+                <button class="folder-confirm-btn folder-confirm-yes" (click)="commitNewSubfolder()" title="Create">
+                  <i class="fas fa-check"></i>
+                </button>
+                <button class="folder-confirm-btn" (click)="cancelNewSubfolder()" title="Cancel">
+                  <i class="fas fa-xmark"></i>
+                </button>
+              }
+            </div>
+            @if (folderNewError()) {
+              <div class="folder-inline-error" [style.padding-left.px]="10 + (row.depth + 1) * 12">{{ folderNewError() }}</div>
+            }
+          }
+        }
+
+        <!-- New root folder input (when no parent) -->
+        @if (folderNewParentPath() === '__root__') {
+          <div class="folder-rename-row" style="padding-left:10px">
+            <i class="fas fa-folder-plus" style="color:var(--accent-blue);font-size:12px;flex-shrink:0"></i>
+            <input class="folder-inline-input" autofocus placeholder="Folder name…"
+                   [ngModel]="folderNewName()" (ngModelChange)="folderNewName.set($event)"
+                   (keydown.enter)="commitNewSubfolder()"
+                   (keydown.escape)="cancelNewSubfolder()" />
+            <button class="folder-confirm-btn folder-confirm-yes" (click)="commitNewSubfolder()">
+              <i class="fas fa-check"></i>
+            </button>
+            <button class="folder-confirm-btn" (click)="cancelNewSubfolder()">
+              <i class="fas fa-xmark"></i>
+            </button>
+          </div>
+        }
+
+        @if (folderTreeRows().length === 0 && folderNewParentPath() === '__none__') {
           <span class="nav-empty">No folders yet</span>
         }
+
+        <!-- Manage folders link -->
+        <a routerLink="/folders" routerLinkActive="active" class="nav-item nav-item-sm folder-manage-link">
+          <i class="fas fa-sliders nav-icon-sm"></i>
+          <span class="nav-label">Manage Folders</span>
+        </a>
       </div>
 
       <!-- Tags -->

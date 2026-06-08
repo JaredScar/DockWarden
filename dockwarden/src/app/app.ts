@@ -5,6 +5,7 @@ import { VaultService, AccountProfile } from './core/vault.service';
 import { SmartViewService } from './core/smart-view.service';
 import { ClipboardService } from './core/clipboard.service';
 import { TemplateService } from './core/template.service';
+import { FolderService } from './core/folder.service';
 import { VaultTemplate } from './shared/models';
 import { CommonModule } from '@angular/common';
 import { filter } from 'rxjs/operators';
@@ -23,6 +24,7 @@ export class App implements OnInit, OnDestroy {
   private readonly router = inject(Router);
   readonly clipboardService = inject(ClipboardService);
   readonly templateService = inject(TemplateService);
+  readonly folderService = inject(FolderService);
   private _kbHandler?: (e: KeyboardEvent) => void;
 
   readonly stats = this.vaultService.stats;
@@ -44,25 +46,148 @@ export class App implements OnInit, OnDestroy {
   readonly pinnedViews = this.smartViewService.pinnedViews;
   readonly folders = this.vaultService.folders;
 
-  // ── Sidebar folders ────────────────────────────────────────────────────────
-  readonly sidebarFolders = computed(() => {
-    const folders = this.vaultService.folders();
-    const items = this.vaultService.items();
-    const result: { id: string; label: string; count: number; icon: string }[] = [];
+  // ── Sidebar special counts ────────────────────────────────────────────────
+  readonly sidebarFavCount = computed(() => this.vaultService.items().filter(i => i.favorite).length);
+  readonly sidebarNoFolderCount = computed(() => this.vaultService.items().filter(i => !i.folderId).length);
 
-    const favCount = items.filter(i => i.favorite).length;
-    if (favCount > 0) result.push({ id: '__favorites__', label: 'Favorites', count: favCount, icon: 'fas fa-star' });
+  // ── Sidebar folder tree (from FolderService) ──────────────────────────────
+  readonly folderTreeRows = this.folderService.sidebarRows;
 
-    const noFolderCount = items.filter(i => !i.folderId).length;
-    if (noFolderCount > 0) result.push({ id: '__none__', label: 'No Folder', count: noFolderCount, icon: 'fas fa-inbox' });
+  // ── Folder inline operations ──────────────────────────────────────────────
+  /** fullPath of the folder whose row is in inline-rename mode */
+  readonly folderRenamingPath = signal<string | null>(null);
+  readonly folderRenameValue = signal('');
+  readonly folderRenameSaving = signal(false);
+  readonly folderRenameError = signal('');
 
-    folders.forEach(folder => {
-      const count = items.filter(i => i.folderId === folder.id).length;
-      if (count > 0) result.push({ id: folder.id, label: folder.name, count, icon: 'fas fa-folder' });
-    });
+  /** Whether the new folder input row is open (null = not open; string or '__root__' = parent path) */
+  readonly folderNewParentPath = signal<string | null | '__root__'>('__none__');
+  readonly folderNewName = signal('');
+  readonly folderNewSaving = signal(false);
+  readonly folderNewError = signal('');
 
-    return result;
-  });
+  /** fullPath whose ⋮ context menu is currently open */
+  readonly folderMenuPath = signal<string | null>(null);
+
+  /** fullPath confirming delete */
+  readonly folderDeleteConfirmPath = signal<string | null>(null);
+  readonly folderDeleteSaving = signal(false);
+
+  /** Folder being dragged over (for item drop) */
+  readonly folderDragOverId = signal<string | null>(null);
+
+  // ── Folder tree actions ───────────────────────────────────────────────────
+
+  toggleFolder(fullPath: string): void { this.folderService.toggle(fullPath); }
+
+  openFolderMenu(fullPath: string, event: MouseEvent): void {
+    event.stopPropagation();
+    this.folderMenuPath.set(this.folderMenuPath() === fullPath ? null : fullPath);
+    this.folderDeleteConfirmPath.set(null);
+  }
+
+  closeFolderMenu(): void { this.folderMenuPath.set(null); }
+
+  startFolderRename(fullPath: string): void {
+    const parts = fullPath.split('/');
+    this.folderRenameValue.set(parts[parts.length - 1]);
+    this.folderRenameError.set('');
+    this.folderRenamingPath.set(fullPath);
+    this.folderMenuPath.set(null);
+  }
+
+  cancelFolderRename(): void {
+    this.folderRenamingPath.set(null);
+    this.folderRenameValue.set('');
+    this.folderRenameError.set('');
+  }
+
+  async commitFolderRename(): Promise<void> {
+    const path = this.folderRenamingPath();
+    const newSegment = this.folderRenameValue().trim();
+    if (!path || !newSegment) return;
+
+    const folder = this.folderService.getByPath(path);
+    this.folderRenameSaving.set(true);
+
+    // Virtual nodes (id === null) have no BW folder ID — rename by path cascade
+    const result = folder
+      ? await this.folderService.renameWithCascade(folder.id, newSegment)
+      : await this.folderService.renameWithCascadeByPath(path, newSegment);
+
+    this.folderRenameSaving.set(false);
+    if (result.success) {
+      this.cancelFolderRename();
+    } else {
+      this.folderRenameError.set(result.error ?? 'Rename failed');
+    }
+  }
+
+  startNewSubfolder(parentPath: string | null, event?: MouseEvent): void {
+    event?.stopPropagation();
+    this.folderNewParentPath.set(parentPath === null ? '__root__' : parentPath);
+    this.folderNewName.set('');
+    this.folderNewError.set('');
+    this.folderMenuPath.set(null);
+    if (parentPath) this.folderService.expand(parentPath);
+  }
+
+  cancelNewSubfolder(): void {
+    this.folderNewParentPath.set('__none__');
+    this.folderNewName.set('');
+    this.folderNewError.set('');
+  }
+
+  async commitNewSubfolder(): Promise<void> {
+    const rawParent = this.folderNewParentPath();
+    const rawName = this.folderNewName().trim();
+    if (!rawName) return;
+
+    const parentPath = rawParent === '__root__' || rawParent === '__none__' ? null : rawParent;
+    const fullPath = parentPath ? `${parentPath}/${rawName}` : rawName;
+    this.folderNewSaving.set(true);
+    const result = await this.folderService.createFolder(fullPath);
+    this.folderNewSaving.set(false);
+    if (result.success) {
+      this.cancelNewSubfolder();
+    } else {
+      this.folderNewError.set(result.error ?? 'Could not create folder');
+    }
+  }
+
+  confirmFolderDelete(fullPath: string): void {
+    this.folderDeleteConfirmPath.set(fullPath);
+    this.folderMenuPath.set(null);
+  }
+
+  cancelFolderDelete(): void { this.folderDeleteConfirmPath.set(null); }
+
+  async doFolderDelete(fullPath: string): Promise<void> {
+    const folder = this.folderService.getByPath(fullPath);
+    if (!folder) { this.folderDeleteConfirmPath.set(null); return; }
+    this.folderDeleteSaving.set(true);
+    await this.folderService.deleteFolder(folder.id);
+    this.folderDeleteSaving.set(false);
+    this.folderDeleteConfirmPath.set(null);
+  }
+
+  // ── Drag-to-folder (items dragged from items list) ────────────────────────
+
+  onFolderDragOver(event: DragEvent, folderId: string | null): void {
+    if (!event.dataTransfer?.types.includes('dw-item-id')) return;
+    event.preventDefault();
+    this.folderDragOverId.set(folderId);
+  }
+
+  onFolderDragLeave(): void { this.folderDragOverId.set(null); }
+
+  async onFolderDrop(event: DragEvent, folderId: string | null): Promise<void> {
+    event.preventDefault();
+    this.folderDragOverId.set(null);
+    const itemId = event.dataTransfer?.getData('dw-item-id');
+    if (!itemId) return;
+    await this.vaultService.updateItemMeta(itemId, { folderId });
+  }
 
   // ── Account switcher ──────────────────────────────────────────────────────
   readonly accounts = signal<AccountProfile[]>([]);

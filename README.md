@@ -4,7 +4,7 @@
 
 ### A power-user companion app built on top of Bitwarden.
 
-**Tags · Multi-Tag Filtering · Auto-Type · Smart Views · Expiry Policies · Quick Launcher · Multi-Account · Snapshot Diffing · Custom Icons · Clipboard Auto-Clear · TOTP Panel · Vault Item Templates**
+**Tags · Multi-Tag Filtering · Auto-Type · Smart Views · Expiry Policies · Quick Launcher · Multi-Account · Snapshot Diffing · Custom Icons · Clipboard Auto-Clear · TOTP Panel · Vault Item Templates · Visual Nested Folders**
 
 [![Electron](https://img.shields.io/badge/Electron-42-47848F?style=flat-square&logo=electron&logoColor=white)](https://electronjs.org)
 [![Angular](https://img.shields.io/badge/Angular-21-DD0031?style=flat-square&logo=angular&logoColor=white)](https://angular.dev)
@@ -43,6 +43,7 @@ Everything DockWarden does uses the **official Bitwarden CLI** under the hood. Y
 | **Multi-account switching with color coding** | ✅ | ❌ | ✅ |
 | **Vault snapshot diffing (audit trail)** | ❌ | ❌ | ✅ |
 | **Customizable vault item templates** | ❌ | ❌ | ✅ |
+| **Visual nested folder manager** | ✅ | ❌ | ✅ |
 | **Custom local icons / favicons (no CDN)** | ❌ | ❌ | ✅ |
 | **Clipboard auto-clear with toast countdown** | ✅ | ⚠️ (extension only) | ✅ |
 | **TOTP panel — all codes at a glance** | ✅ | ❌ | ✅ |
@@ -298,6 +299,52 @@ Share template definitions with your team or the community as JSON snippets:
 
 ---
 
+### 🗂️ Visual Nested Folder Manager
+
+Bitwarden technically supports nested folders — but only if you manually type names like `Personal/Email/Work` and remember the delimiter. There's no visual tree, no drag-and-drop, no context menu. DockWarden turns Bitwarden's slash-delimited names into a **proper interactive folder hierarchy** that feels like a native file explorer.
+
+#### Visual folder tree in the sidebar
+
+The sidebar's CATEGORIES section is replaced with a live folder tree:
+
+```
+▼ 📁 Personal              12
+    📁 Email                5
+  ▶ 📁 Work                 7
+      📁 HR                  2
+      📁 Projects            5
+  📁 Finance                 3
++ Add folder
+  ⚙ Manage Folders
+```
+
+- **Expand / collapse** — click the `▶` chevron or the folder row to toggle children; state is persisted in memory across navigation
+- **Hover actions** — hovering a row reveals two tiny icon buttons: `+` (new subfolder inline) and `⋮` (opens Rename / Delete menu)
+- **Inline rename** — clicking Rename replaces the label with a text input; press `Enter` or `Escape` to confirm/cancel; renames cascade to all child folders automatically
+- **Inline new subfolder** — clicking `+` inserts an input directly below the parent row; the new folder appears in the tree immediately on creation
+- **Delete** — shows a one-click confirmation bar in place of the row; deleted folders don't delete items — they become unfiled
+- **Item counts** — badges show the total item count including all descendants so you always know what's inside collapsed nodes
+- **Drag vault items to folders** — drag any item row from the vault browser and drop it onto a folder row in the sidebar to move it instantly
+
+#### Nested folder filtering
+
+Clicking any folder in the sidebar now shows **all items in that folder and every subfolder beneath it** — not just the exact folder. Clicking "Personal" shows items from "Personal", "Personal/Email", "Personal/Work", and so on, giving you a true tree-inclusive view.
+
+#### Folder Manager page
+
+A dedicated **`/folders`** page provides a full-width management experience:
+
+- **Drag-to-reparent** — drag any folder row onto another to make it a child; all descendant paths are updated in Bitwarden via the CLI automatically
+- **Move dialog** — for each folder, a "Move to…" dropdown lets you select a new parent without dragging
+- **Create / rename / delete** — full CRUD with cascade rename for parent folders
+- **Expand / Collapse All** buttons in the toolbar
+- **Item panel** — selecting a folder shows all items in its subtree on the right, with a per-item "Move to folder" action and a "Browse in Vault" button
+- **Drag items between folders** — item rows in the detail panel are draggable, and folder rows in the sidebar act as drop targets
+
+> Under the hood it's all `bw create folder`, `bw edit folder`, and `bw delete folder` calls — the vault structure always lives in Bitwarden. DockWarden just makes the UX instant and visual.
+
+---
+
 ### 🖱️ Click-to-Copy Fields
 
 A small but frequently requested UX improvement: clicking anywhere on a username, password, website, or card number field box copies the value to your clipboard instantly — no need to aim for the small copy icon.
@@ -453,6 +500,7 @@ dockwarden/
     │   ├── backup/         # Backup destinations, schedule, history
     │   ├── settings/       # Preferences + Custom CSS editor
     │   ├── templates/      # Template builder, picker, JSON import/export
+    │   ├── folders/        # Visual folder manager, drag-to-reparent, CRUD
     │   └── unlock/         # Login / unlock screen with 2FA support
     └── shared/
         └── models/         # TypeScript interfaces: VaultItem, Tag, SmartView, VaultTemplate…
@@ -510,6 +558,7 @@ export class VaultService {
 | ✅ Clipboard Auto-Clear | Toast countdown, cancel button, configurable delay (10–60s) | **Shipped** |
 | ✅ TOTP Panel | All codes at a glance, live countdown ring, urgency coloring, click-to-copy | **Shipped** |
 | ✅ Vault Item Templates | Template builder, 6 built-in presets, two-step Ctrl+N picker, JSON import/export | **Shipped** |
+| ✅ Visual Nested Folder Manager | Collapsible tree, drag-to-reparent, inline CRUD, cascade rename, nested filtering | **Shipped** |
 | 🚧 Cloud backup adapters | S3, Cloudflare R2, Backblaze B2, WebDAV live | Planned |
 
 ---

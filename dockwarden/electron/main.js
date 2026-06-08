@@ -728,6 +728,64 @@ function setupIpcHandlers() {
     }
   });
 
+  // ─── Folder CRUD ───────────────────────────────────────────────────────────
+
+  ipcMain.handle('folder:create', async (_, { name }) => {
+    if (!bwSession) return { success: false, error: 'Not unlocked' };
+    try {
+      const encoded = Buffer.from(JSON.stringify({ name })).toString('base64');
+      const result = await runBw(['create', 'folder', encoded, '--session', bwSession]);
+      const created = JSON.parse(result);
+      return { success: true, folder: { id: created.id, name: created.name } };
+    } catch (err) {
+      return { success: false, error: extractBwError(err.message) };
+    }
+  });
+
+  ipcMain.handle('folder:rename', async (_, { id, name }) => {
+    if (!bwSession) return { success: false, error: 'Not unlocked' };
+    try {
+      const encoded = Buffer.from(JSON.stringify({ name })).toString('base64');
+      await runBw(['edit', 'folder', id, encoded, '--session', bwSession]);
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: extractBwError(err.message) };
+    }
+  });
+
+  ipcMain.handle('folder:delete', async (_, { id }) => {
+    if (!bwSession) return { success: false, error: 'Not unlocked' };
+    try {
+      await runBw(['delete', 'folder', id, '--session', bwSession]);
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: extractBwError(err.message) };
+    }
+  });
+
+  // Move a folder (and all its descendants) to a new parent path.
+  // oldPath = current full BW folder name (e.g. "Work")
+  // newPath = desired full BW folder name (e.g. "Personal/Work")
+  ipcMain.handle('folder:move', async (_, { folders, oldPath, newPath }) => {
+    if (!bwSession) return { success: false, error: 'Not unlocked' };
+    try {
+      // Rename the folder itself and every descendant whose name starts with oldPath/
+      const toRename = folders.filter(f =>
+        f.name === oldPath || f.name.startsWith(oldPath + '/')
+      );
+      for (const f of toRename) {
+        const updatedName = f.name === oldPath
+          ? newPath
+          : newPath + f.name.slice(oldPath.length);
+        const encoded = Buffer.from(JSON.stringify({ name: updatedName })).toString('base64');
+        await runBw(['edit', 'folder', f.id, encoded, '--session', bwSession]);
+      }
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: extractBwError(err.message) };
+    }
+  });
+
   // ─── Templates ─────────────────────────────────────────────────────────────
 
   ipcMain.handle('template:get-all', () => {
