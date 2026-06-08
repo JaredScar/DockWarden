@@ -1,6 +1,6 @@
 {
   "name": "dockwarden",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "A cross-platform Bitwarden companion app with tags, auto-type, smart views, expiry reminders, and automated backups",
   "author": {
     "name": "JaredScar",
