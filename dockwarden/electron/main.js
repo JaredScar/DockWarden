@@ -1,11 +1,9 @@
-const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, globalShortcut, Notification, shell, screen, dialog } = require('electron');
+const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, globalShortcut, Notification, shell, screen, dialog, safeStorage, session } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const { exec, spawn } = require('child_process');
-const { promisify } = require('util');
+const os = require('os');
+const { spawn } = require('child_process');
 const { autoUpdater } = require('electron-updater');
-
-const execAsync = promisify(exec);
 
 const isDev = process.env.ELECTRON_ENV === 'development';
 
@@ -33,12 +31,22 @@ class Store {
   }
   get(key, defaultValue) {
     this._init();
+    if (Store._isUnsafeKey(key)) return defaultValue;
     return Object.prototype.hasOwnProperty.call(this._data, key) ? this._data[key] : defaultValue;
   }
   set(key, value) {
     this._init();
+    // Reject prototype-polluting keys (e.g. from a compromised renderer passing
+    // an arbitrary settings key through the generic store bridge).
+    if (Store._isUnsafeKey(key)) {
+      console.warn('[security] blocked store write to unsafe key:', key);
+      return;
+    }
     this._data[key] = value;
     try { fs.writeFileSync(this._file, JSON.stringify(this._data, null, 2)); } catch {}
+  }
+  static _isUnsafeKey(key) {
+    return typeof key !== 'string' || key === '__proto__' || key === 'constructor' || key === 'prototype';
   }
 }
 
@@ -49,27 +57,193 @@ let bwSession = null;
 let pending2FA = null;      // { email, serverUrl, env }
 let pending2FAProcess = null; // Live spawn process holding the auth session open
 
-function getBwPath() {
-  return store.get('bwCliPath', 'bw');
+// ─── bwCliPath — stored encrypted via safeStorage ────────────────────────────
+// safeStorage ties the encrypted blob to the OS credential manager
+// (DPAPI/Keychain/libsecret).  An attacker editing dockwarden-store.json
+// cannot produce a valid encrypted value without running code in the same OS
+// session, so externally substituting a malicious binary path fails silently
+// and the app falls back to the safe default "bw".
+
+const SAFE_BW_BASENAME = /^bw(\.exe)?$/i;
+const UNSAFE_DIRS = ['/tmp', '/var/tmp', os.tmpdir()].map(d => path.resolve(d));
+
+/**
+ * Validate that a path looks like a legitimate Bitwarden CLI binary.
+ * Returns an error string if invalid, or null if OK.
+ */
+function validateBwCliPath(p) {
+  if (!p || typeof p !== 'string') return 'Path must be a non-empty string';
+  const resolved = path.resolve(p);
+  const base = path.basename(resolved);
+  if (!SAFE_BW_BASENAME.test(base)) {
+    return `Filename must be "bw" or "bw.exe", got "${base}"`;
+  }
+  // Reject world-writable directories (e.g. /tmp) as install locations
+  const dir = path.dirname(resolved);
+  if (UNSAFE_DIRS.some(u => dir === u || dir.startsWith(u + path.sep))) {
+    return `"${dir}" is not a trusted location for the Bitwarden CLI`;
+  }
+  return null;
 }
 
-// Run a bw CLI command and return parsed JSON output
+function encryptBwPath(p) {
+  if (!safeStorage.isEncryptionAvailable()) return null;
+  return safeStorage.encryptString(p).toString('base64');
+}
+
+function decryptBwPath(enc) {
+  if (!enc || !safeStorage.isEncryptionAvailable()) return null;
+  try {
+    return safeStorage.decryptString(Buffer.from(enc, 'base64'));
+  } catch {
+    return null; // tampered or from a different OS account
+  }
+}
+
+/**
+ * Returns the validated bwCliPath.
+ * Priority: safeStorage-encrypted value → plaintext legacy value → 'bw'.
+ * Silently falls back to 'bw' if the stored value is tampered or invalid.
+ */
+function getBwPath() {
+  // 1. Try the encrypted value (new format)
+  const enc = store.get('bwCliPathEnc', null);
+  if (enc) {
+    const decrypted = decryptBwPath(enc);
+    if (decrypted && !validateBwCliPath(decrypted)) return decrypted;
+    // Decryption failed or invalid — tampered config; fall through to default
+    console.warn('[security] bwCliPathEnc failed integrity check — using default "bw"');
+    return 'bw';
+  }
+
+  // 2. Migrate unencrypted legacy value on first run after update
+  const plain = store.get('bwCliPath', null);
+  if (plain && !validateBwCliPath(plain)) {
+    const encrypted = encryptBwPath(plain);
+    if (encrypted) {
+      store.set('bwCliPathEnc', encrypted);
+      store.set('bwCliPath', undefined); // remove plaintext
+    }
+    return plain;
+  }
+
+  return 'bw';
+}
+
+// Run a bw CLI command and return stdout as a string.
+// Uses spawn({ shell: false }) so arguments are NEVER interpreted by a shell —
+// characters like ; ` $() && in paths/passwords cannot inject commands.
 async function runBw(args, env = {}) {
   const bwPath = getBwPath();
   const mergedEnv = { ...process.env, ...env };
-  // Quote args to handle spaces; use shell so PATH is resolved on all platforms
-  const quotedArgs = args.map(a => `"${a.replace(/"/g, '\\"')}"`).join(' ');
-  const cmd = `"${bwPath}" ${quotedArgs}`;
-  const { stdout } = await execAsync(cmd, {
-    env: mergedEnv,
-    maxBuffer: 50 * 1024 * 1024,
+
+  return new Promise((resolve, reject) => {
+    const proc = spawn(bwPath, args, {
+      env: mergedEnv,
+      shell: false,      // no shell: args pass directly to the OS
+      windowsHide: true, // suppress console window flicker on Windows
+    });
+
+    const chunks = [];
+    let stderr = '';
+
+    proc.stdout.on('data', d => chunks.push(d));
+    proc.stderr.on('data', d => { stderr += d.toString(); });
+    proc.on('error', reject);
+    proc.on('close', code => {
+      if (code === 0) {
+        resolve(Buffer.concat(chunks).toString('utf8').trim());
+      } else {
+        reject(new Error(stderr.trim() || `bw exited with code ${code}`));
+      }
+    });
   });
-  return stdout.trim();
 }
 
 async function runBwJson(args, env = {}) {
   const output = await runBw(args, env);
   return JSON.parse(output);
+}
+
+// ─── External URL safety ──────────────────────────────────────────────────────
+// Only allow opening web/email links externally. Blocks file:, smb:, javascript:,
+// and OS-handler protocols that could be abused to launch local programs.
+const ALLOWED_EXTERNAL_PROTOCOLS = new Set(['http:', 'https:', 'mailto:']);
+
+function isSafeExternalUrl(url) {
+  if (typeof url !== 'string' || url.length === 0 || url.length > 2048) return false;
+  try {
+    const parsed = new URL(url);
+    return ALLOWED_EXTERNAL_PROTOCOLS.has(parsed.protocol);
+  } catch {
+    return false;
+  }
+}
+
+function openExternalSafely(url) {
+  if (!isSafeExternalUrl(url)) {
+    console.warn('[security] blocked openExternal for disallowed URL:', String(url).slice(0, 120));
+    return false;
+  }
+  shell.openExternal(url);
+  return true;
+}
+
+// Store keys the renderer must NOT be able to read or write through the generic
+// app:get-store / app:set-store / vault:get-setting / vault:set-setting bridges.
+// The CLI path has a dedicated, validated + encrypted setter (bw:set-cli-path)
+// and is surfaced (decrypted) only via bw:get-config — so the raw encrypted blob
+// should never flow through the unrestricted generic store API.
+const PROTECTED_STORE_KEYS = new Set(['bwCliPath', 'bwCliPathEnc', 'backupDir']);
+
+// ─── Backup directory safety ──────────────────────────────────────────────────
+// backupDir decides where the (encrypted) vault export is written. It must only
+// be changeable through the dedicated, validated setter below — never via the
+// generic store bridge — so a compromised renderer can't silently redirect
+// backups to an attacker-chosen or system-sensitive location.
+function validateBackupDir(dir) {
+  if (typeof dir !== 'string' || dir.length === 0 || dir.length > 4096) {
+    return 'Backup folder path is invalid';
+  }
+  if (dir.includes('\u0000')) return 'Backup folder path is invalid';
+  if (!path.isAbsolute(dir)) return 'Backup folder must be an absolute path';
+  return null;
+}
+
+// Returns a validated backup directory, falling back to the default if the
+// stored value is missing or was tampered with externally.
+function getSafeBackupDir() {
+  const fallback = path.join(app.getPath('documents'), 'DockWarden-Backups');
+  const stored = store.get('backupDir', null);
+  if (stored && !validateBackupDir(stored)) return stored;
+  return fallback;
+}
+
+// ─── Bitwarden server URL safety ──────────────────────────────────────────────
+// The server URL is handed to `bw config server`, which determines where the
+// master password is submitted at login/unlock. An attacker-supplied or
+// malformed value (file:, javascript:, http: in prod, an internal host, etc.)
+// could redirect credentials to a hostile endpoint, so validate strictly.
+function validateServerUrl(url) {
+  // Empty means "use the default Bitwarden cloud" — allowed.
+  if (url === undefined || url === null || url === '') return null;
+  if (typeof url !== 'string' || url.length > 2048) return 'Server URL is invalid';
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return 'Server URL is not a valid URL';
+  }
+  // Only http(s); block file:, javascript:, data:, etc.
+  if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+    return 'Server URL must use http or https';
+  }
+  // Permit http only for loopback (self-hosted dev); require https otherwise.
+  const isLoopback = ['localhost', '127.0.0.1', '::1'].includes(parsed.hostname);
+  if (parsed.protocol === 'http:' && !isLoopback) {
+    return 'Server URL must use https (http is only allowed for localhost)';
+  }
+  return null;
 }
 
 // Map a Bitwarden CLI item to our VaultItem model
@@ -173,7 +347,8 @@ function createMainWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false,
+      sandbox: true,
+      webviewTag: false,
     },
     icon: path.join(__dirname, '../public/favicon.ico'),
     show: false,
@@ -206,7 +381,10 @@ function createMainWindow() {
     if (level >= 2) console.error('[Renderer]', message);
   });
 
-  mainWindow.webContents.openDevTools();
+  // Only open DevTools during development — never in a packaged build.
+  if (isDev) {
+    mainWindow.webContents.openDevTools();
+  }
 
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
@@ -285,7 +463,8 @@ function openLauncherWindow(mode) {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false,
+      sandbox: true,
+      webviewTag: false,
     },
   });
 
@@ -386,6 +565,11 @@ function setupIpcHandlers() {
     }
     pending2FA = null;
 
+    // Reject hostile/malformed server URLs before the master password is ever
+    // submitted to that endpoint (anti credential-phishing).
+    const serverErr = validateServerUrl(serverUrl);
+    if (serverErr) return { success: false, error: serverErr };
+
     const env = { BW_PASSWORD: password };
     try { if (serverUrl) await runBw(['config', 'server', serverUrl]); } catch { /* non-fatal */ }
 
@@ -395,7 +579,7 @@ function setupIpcHandlers() {
       // so we can pipe it later without triggering a second email.
       const proc = spawn(bwPath,
         ['login', email, '--passwordenv', 'BW_PASSWORD', '--raw'],
-        { env: { ...process.env, ...env }, shell: true, windowsHide: true,
+        { env: { ...process.env, ...env }, shell: false, windowsHide: true,
           stdio: ['pipe', 'pipe', 'pipe'] });
 
       let stdout = '';
@@ -524,7 +708,7 @@ function setupIpcHandlers() {
       const bwPath = getBwPath();
       const proc = spawn(bwPath,
         ['login', email, '--passwordenv', 'BW_PASSWORD', '--method', String(method), '--raw'],
-        { env: { ...process.env, ...env }, shell: true, windowsHide: true,
+        { env: { ...process.env, ...env }, shell: false, windowsHide: true,
           stdio: ['pipe', 'pipe', 'pipe'] });
 
       let stdout = '';
@@ -823,28 +1007,22 @@ function setupIpcHandlers() {
         function escSK(str) {
           return (str || '').replace(/[+^%~(){}[\]]/g, ch => `{${ch}}`);
         }
-        const ts         = Date.now();
-        const dataFile   = path.join(app.getPath('temp'), `dw-at-data-${ts}.json`);
-        const scriptFile = path.join(app.getPath('temp'), `dw-at-${ts}.ps1`);
 
-        fs.writeFileSync(dataFile, JSON.stringify({
-          username: escSK(username || ''),
-          password: escSK(password || ''),
-          pressEnter: !!pressEnter,
-        }), 'utf8');
-
-        const dataFileEsc   = dataFile.replace(/\\/g, '\\\\');
+        // Credentials are passed to PowerShell over stdin and never written to
+        // disk. The script file itself contains no secrets — only the logic to
+        // read the piped JSON — so a world-readable temp dir can't leak the
+        // password the way a plaintext data file would.
+        const scriptFile = path.join(app.getPath('temp'), `dw-at-${Date.now()}.ps1`);
         const scriptFileEsc = scriptFile.replace(/\\/g, '\\\\');
 
         const script = [
           'Add-Type -AssemblyName System.Windows.Forms',
-          `$d = Get-Content '${dataFileEsc}' | ConvertFrom-Json`,
+          '$d = [Console]::In.ReadToEnd() | ConvertFrom-Json',
           'Start-Sleep -Milliseconds 900',
           'if ($d.username) { [System.Windows.Forms.SendKeys]::SendWait($d.username) }',
           'if ($d.username -and $d.password) { [System.Windows.Forms.SendKeys]::SendWait("{TAB}") }',
           'if ($d.password) { [System.Windows.Forms.SendKeys]::SendWait($d.password) }',
           'if ($d.pressEnter) { [System.Windows.Forms.SendKeys]::SendWait("{ENTER}") }',
-          `Remove-Item '${dataFileEsc}' -ErrorAction SilentlyContinue`,
           `Remove-Item '${scriptFileEsc}' -ErrorAction SilentlyContinue`,
         ].join('\n');
 
@@ -855,7 +1033,15 @@ function setupIpcHandlers() {
           '-NonInteractive',
           '-WindowStyle', 'Hidden',
           '-File', scriptFile,
-        ], { detached: true, stdio: 'ignore' });
+        ], { stdio: ['pipe', 'ignore', 'ignore'] });
+
+        // Pipe the (SendKeys-escaped) credentials over stdin, then close it.
+        proc.stdin.write(JSON.stringify({
+          username: escSK(username || ''),
+          password: escSK(password || ''),
+          pressEnter: !!pressEnter,
+        }));
+        proc.stdin.end();
         proc.unref();
 
       } else {
@@ -870,7 +1056,13 @@ function setupIpcHandlers() {
           proc.stdin.end();
         });
 
-        const oса = (script) => execAsync(`osascript -e '${script}'`);
+        // spawn osascript with shell:false so the AppleScript is passed as a
+        // direct argument, not interpolated into a shell command string.
+        const oса = (script) => new Promise((res, rej) => {
+          const p = spawn('osascript', ['-e', script], { shell: false });
+          p.on('error', rej);
+          p.on('close', code => code === 0 ? res() : rej(new Error(`osascript exited ${code}`)));
+        });
 
         // Short delay so DockWarden finishes minimising before we steal focus
         await new Promise(r => setTimeout(r, 900));
@@ -907,8 +1099,9 @@ function setupIpcHandlers() {
       return { success: false, error: 'Vault must be unlocked to create a backup' };
     }
     try {
-      // Export the vault as an encrypted JSON file
-      const backupDir = store.get('backupDir', path.join(app.getPath('documents'), 'DockWarden-Backups'));
+      // Export the vault as an encrypted JSON file. The directory is re-validated
+      // here so an externally tampered store can't redirect the export.
+      const backupDir = getSafeBackupDir();
       if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true });
 
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
@@ -936,13 +1129,34 @@ function setupIpcHandlers() {
     return store.get('backupHistory', []);
   });
 
+  ipcMain.handle('backup:get-dir', async () => {
+    return getSafeBackupDir();
+  });
+
+  // Dedicated, validated setter for the backup directory (the only sanctioned
+  // way to change it — the key is blocked on the generic store bridge).
+  ipcMain.handle('backup:set-dir', async (_, { dir }) => {
+    const err = validateBackupDir(dir);
+    if (err) return { success: false, error: err };
+    store.set('backupDir', dir);
+    return { success: true, dir };
+  });
+
   // ─── App ───────────────────────────────────────────────────────────────────
 
   ipcMain.handle('app:get-store', async (_, key) => {
+    if (PROTECTED_STORE_KEYS.has(key)) {
+      console.warn('[security] blocked generic store read of protected key:', key);
+      return null;
+    }
     return store.get(key);
   });
 
   ipcMain.handle('app:set-store', async (_, { key, value }) => {
+    if (PROTECTED_STORE_KEYS.has(key)) {
+      console.warn('[security] blocked generic store write to protected key:', key);
+      return false;
+    }
     store.set(key, value);
     return true;
   });
@@ -953,7 +1167,7 @@ function setupIpcHandlers() {
   });
 
   ipcMain.handle('app:open-external', async (_, url) => {
-    shell.openExternal(url);
+    return { success: openExternalSafely(url) };
   });
 
   // ─── Settings helpers ──────────────────────────────────────────────────────
@@ -962,14 +1176,25 @@ function setupIpcHandlers() {
     return {
       bwEmail: store.get('bwEmail', ''),
       bwServerUrl: store.get('bwServerUrl', 'https://bitwarden.com'),
-      bwCliPath: store.get('bwCliPath', 'bw'),
+      bwCliPath: getBwPath(), // always returns the validated, decrypted value
       isSessionActive: !!bwSession,
     };
   });
 
   ipcMain.handle('bw:set-cli-path', async (_, { cliPath }) => {
-    store.set('bwCliPath', cliPath);
-    return true;
+    const err = validateBwCliPath(cliPath);
+    if (err) return { success: false, error: err };
+
+    const encrypted = encryptBwPath(cliPath);
+    if (encrypted) {
+      store.set('bwCliPathEnc', encrypted);
+      store.set('bwCliPath', undefined); // remove any legacy plaintext
+    } else {
+      // safeStorage unavailable (rare); store plaintext but log a warning
+      console.warn('[security] safeStorage unavailable — storing bwCliPath as plaintext');
+      store.set('bwCliPath', cliPath);
+    }
+    return { success: true };
   });
 
   ipcMain.handle('bw:check-cli', async () => {
@@ -1035,6 +1260,8 @@ function setupIpcHandlers() {
   });
 
   ipcMain.handle('account:add-profile', async (_, { profile }) => {
+    const serverErr = validateServerUrl(profile?.serverUrl);
+    if (serverErr) return { success: false, error: serverErr };
     const profiles = store.get('accountProfiles', []);
     const id = `acct-${Date.now()}`;
     const color = ACCOUNT_COLORS[profiles.length % ACCOUNT_COLORS.length];
@@ -1046,6 +1273,10 @@ function setupIpcHandlers() {
   });
 
   ipcMain.handle('account:update-profile', async (_, { id, patch }) => {
+    if (patch && 'serverUrl' in patch) {
+      const serverErr = validateServerUrl(patch.serverUrl);
+      if (serverErr) return { success: false, error: serverErr };
+    }
     const profiles = store.get('accountProfiles', []);
     store.set('accountProfiles', profiles.map(p => p.id === id ? { ...p, ...patch } : p));
     return true;
@@ -1083,10 +1314,18 @@ function setupIpcHandlers() {
   // ─── Generic Settings ─────────────────────────────────────────────────────────
 
   ipcMain.handle('vault:get-setting', async (_, { key, defaultValue }) => {
+    if (PROTECTED_STORE_KEYS.has(key)) {
+      console.warn('[security] blocked generic setting read of protected key:', key);
+      return defaultValue ?? null;
+    }
     return store.get(key, defaultValue ?? null);
   });
 
   ipcMain.handle('vault:set-setting', async (_, { key, value }) => {
+    if (PROTECTED_STORE_KEYS.has(key)) {
+      console.warn('[security] blocked generic setting write to protected key:', key);
+      return false;
+    }
     store.set(key, value);
     return true;
   });
@@ -1163,6 +1402,9 @@ function setupIpcHandlers() {
   });
 
   ipcMain.handle('icon:set', async (_, { itemId, icon }) => {
+    if (typeof itemId !== 'string' || itemId === '__proto__' || itemId === 'constructor' || itemId === 'prototype') {
+      return false;
+    }
     const icons = store.get('customIcons', {});
     icons[itemId] = icon;
     store.set('customIcons', icons);
@@ -1170,6 +1412,7 @@ function setupIpcHandlers() {
   });
 
   ipcMain.handle('icon:remove', async (_, { itemId }) => {
+    if (typeof itemId !== 'string') return false;
     const icons = store.get('customIcons', {});
     delete icons[itemId];
     store.set('customIcons', icons);
@@ -1181,6 +1424,12 @@ function setupIpcHandlers() {
   let watchtowerActive = false;
 
   ipcMain.handle('watchtower:start-scan', async (_event, serializedItems, settings) => {
+    // Validate input shape — a malformed call must not leave the scan flag stuck
+    // (which would permanently block future scans) or crash mid-iteration.
+    if (!Array.isArray(serializedItems)) {
+      return { success: false, error: 'Invalid scan payload' };
+    }
+
     const crypto = require('crypto');
     let zxcvbn;
     try { zxcvbn = require('zxcvbn'); } catch { zxcvbn = null; }
@@ -1569,7 +1818,97 @@ function saveAccountProfile(email, serverUrl) {
 }
 
 
+// ─── Renderer hardening: navigation, window.open, and CSP ─────────────────────
+
+// The only origins the renderer is ever allowed to live at.
+const ALLOWED_RENDERER_ORIGINS = new Set([
+  'http://localhost:4200', // dev server
+  'file://',               // packaged build
+]);
+
+function isAllowedRendererTarget(targetUrl) {
+  try {
+    const u = new URL(targetUrl);
+    if (u.protocol === 'file:') return true; // packaged app assets
+    return ALLOWED_RENDERER_ORIGINS.has(u.origin);
+  } catch {
+    return false;
+  }
+}
+
+function setupWebContentsSecurity() {
+  app.on('web-contents-created', (_event, contents) => {
+    // Block in-place navigation to anything other than our own app origin.
+    // External http(s) links are diverted to the system browser instead of
+    // hijacking a window that holds the privileged electronAPI bridge.
+    const navigationGuard = (event, navigationUrl) => {
+      if (!isAllowedRendererTarget(navigationUrl)) {
+        event.preventDefault();
+        openExternalSafely(navigationUrl);
+      }
+    };
+    contents.on('will-navigate', navigationGuard);
+    // Also catch server/meta redirects, which fire will-redirect (not will-navigate).
+    contents.on('will-redirect', navigationGuard);
+
+    // Never let the renderer spawn new Electron windows. Safe external links
+    // are opened in the system browser; everything else is denied.
+    contents.setWindowOpenHandler(({ url }) => {
+      openExternalSafely(url);
+      return { action: 'deny' };
+    });
+
+    // Defense-in-depth: forbid attaching <webview> with custom preferences.
+    contents.on('will-attach-webview', (event) => event.preventDefault());
+  });
+}
+
+function setupContentSecurityPolicy() {
+  const prodCsp = [
+    "default-src 'self'",
+    "script-src 'self'",
+    "style-src 'self' 'unsafe-inline'", // Angular + custom-CSS feature inject <style>
+    "img-src 'self' data:",
+    "font-src 'self'",
+    "connect-src 'self'",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "frame-src 'none'",
+    "frame-ancestors 'none'",
+    "form-action 'none'",
+  ].join('; ');
+
+  // Dev needs the ng live-reload websocket and eval-based HMR tooling.
+  const devCsp = [
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-eval' 'unsafe-inline'",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data:",
+    "font-src 'self' data:",
+    "connect-src 'self' http://localhost:4200 ws://localhost:4200",
+    "object-src 'none'",
+    "base-uri 'self'",
+  ].join('; ');
+
+  const csp = isDev ? devCsp : prodCsp;
+
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Content-Security-Policy': [csp],
+      },
+    });
+  });
+
+  // Deny all renderer permission requests (camera, geolocation, etc.) — the app
+  // needs none of them.
+  session.defaultSession.setPermissionRequestHandler((_wc, _permission, cb) => cb(false));
+}
+
 app.whenReady().then(() => {
+  setupContentSecurityPolicy();
+  setupWebContentsSecurity();
   createMainWindow();
   createTray();
   registerGlobalShortcuts();

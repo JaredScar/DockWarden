@@ -100,6 +100,8 @@ declare global {
       backup: {
         runNow: () => Promise<{ success: boolean; timestamp: string; size: string }>;
         getHistory: () => Promise<BackupJob[]>;
+        getDir: () => Promise<string>;
+        setDir: (dir: string) => Promise<{ success: boolean; dir?: string; error?: string }>;
       };
       account: {
         getProfiles: () => Promise<AccountProfile[]>;

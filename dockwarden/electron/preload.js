@@ -37,6 +37,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   backup: {
     runNow: () => ipcRenderer.invoke('backup:run-now'),
     getHistory: () => ipcRenderer.invoke('backup:get-history'),
+    getDir: () => ipcRenderer.invoke('backup:get-dir'),
+    setDir: (dir) => ipcRenderer.invoke('backup:set-dir', { dir }),
   },
   account: {
     getProfiles: () => ipcRenderer.invoke('account:get-profiles'),

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <!-- Required for hardened-runtime apps that use JIT (Node.js / V8) -->
+    <key>com.apple.security.cs.allow-jit</key>
+    <true/>
+    <!-- Allow loading unsigned libraries bundled inside the app (native Node addons) -->
+    <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+    <true/>
+    <!-- Keep DYLD env vars intact for Electron's internal helpers -->
+    <key>com.apple.security.cs.allow-dyld-environment-variables</key>
+    <true/>
+    <!-- Suppress the Library Validation requirement so bundled helpers run correctly -->
+    <key>com.apple.security.cs.disable-library-validation</key>
+    <true/>
+    <!-- Required for auto-type: synthesise key events into other apps -->
+    <key>com.apple.security.automation.apple-events</key>
+    <true/>
+    <!-- Network access for HIBP checks and Bitwarden server connections -->
+    <key>com.apple.security.network.client</key>
+    <true/>
+    <!-- Read / write access to user-chosen backup directories -->
+    <key>com.apple.security.files.user-selected.read-write</key>
+    <true/>
+  </dict>
+</plist>
