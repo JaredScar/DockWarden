@@ -65,6 +65,18 @@
           <span class="nav-label">All Items</span>
           <span class="nav-count">{{ stats().totalItems }}</span>
         </a>
+        <a routerLink="/watchtower" routerLinkActive="active" class="nav-item nav-item-watchtower">
+          <span class="watchtower-icon-wrap">
+            <i class="fas fa-shield-halved nav-icon"></i>
+            @if (watchtowerCriticalCount() > 0) {
+              <span class="watchtower-badge">{{ watchtowerCriticalCount() > 9 ? '9+' : watchtowerCriticalCount() }}</span>
+            }
+          </span>
+          <span class="nav-label">Watchtower</span>
+          @if (watchtowerService.totalIssues() > 0) {
+            <span class="nav-count nav-count-warn">{{ watchtowerService.totalIssues() }}</span>
+          }
+        </a>
       </nav>
 
       <!-- Categories: special items + folder tree -->

@@ -1,0 +1,371 @@
+<div class="watchtower-page" (click)="closeSnoozeMenu()">
+
+  <!-- ── Page Header ─────────────────────────────────────────────────────── -->
+  <div class="page-header">
+    <div class="page-header-left">
+      <h1 class="page-title">
+        <span class="shield-icon-wrap">
+          <i class="fas fa-shield-halved"></i>
+          @if (wt.criticalCount() > 0) {
+            <span class="shield-badge">{{ wt.criticalCount() > 9 ? '9+' : wt.criticalCount() }}</span>
+          }
+        </span>
+        Watchtower
+      </h1>
+      <p class="page-subtitle">
+        Security intelligence for your Bitwarden vault — all checks run privately on your device
+      </p>
+    </div>
+    <div class="page-header-actions">
+      @if (wt.lastScannedAt()) {
+        <span class="last-scanned-label">
+          <i class="fas fa-clock"></i> Scanned {{ timeAgo(wt.lastScannedAt()!) }}
+        </span>
+      }
+      <button class="btn btn-icon" [class.active]="showSettings()" (click)="toggleSettings()" title="Watchtower settings">
+        <i class="fas fa-gear"></i>
+      </button>
+      @if (wt.isScanning()) {
+        <button class="btn btn-danger" (click)="wt.cancelScan()">
+          <i class="fas fa-stop"></i> Cancel
+        </button>
+      } @else {
+        <button class="btn btn-primary" (click)="wt.startScan()">
+          <i class="fas fa-{{ wt.results() ? 'rotate-right' : 'play' }}"></i>
+          {{ wt.results() ? 'Re-scan Vault' : 'Run Security Scan' }}
+        </button>
+      }
+    </div>
+  </div>
+
+  <!-- ── Settings Panel ─────────────────────────────────────────────────── -->
+  @if (showSettings()) {
+    <div class="settings-panel" (click)="$event.stopPropagation()">
+      <div class="settings-panel-header">
+        <span class="settings-panel-title"><i class="fas fa-gear"></i> Watchtower Settings</span>
+        <button class="settings-close-btn" (click)="toggleSettings()"><i class="fas fa-xmark"></i></button>
+      </div>
+
+      <div class="settings-section">
+        <h4 class="settings-section-title">Automation</h4>
+        <div class="settings-toggle-row">
+          <span class="settings-toggle-label">
+            <strong>Auto-scan on vault unlock</strong>
+            <small>Run a security scan automatically every time you unlock</small>
+          </span>
+          <p-toggleswitch
+            [ngModel]="wt.settings().autoScanOnUnlock"
+            (ngModelChange)="onPrimeAutoScanChange($event)" />
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h4 class="settings-section-title">Enabled Checks</h4>
+        @for (check of [
+          { key: 'breachedPasswords', label: 'Breached Passwords', desc: 'HIBP k-Anonymity — requires internet', icon: 'fire' },
+          { key: 'weakPasswords',     label: 'Weak Passwords',     desc: 'zxcvbn strength analysis — offline', icon: 'unlock' },
+          { key: 'reusedPasswords',   label: 'Reused Passwords',   desc: 'Cross-account password deduplication — offline', icon: 'copy' },
+          { key: 'insecureUris',      label: 'Insecure Websites',  desc: 'HTTP URI detection — offline', icon: 'triangle-exclamation' },
+          { key: 'missingTotp',       label: 'Missing 2FA',        desc: 'TOTP coverage on supported sites — offline', icon: 'mobile-screen' },
+          { key: 'duplicateItems',    label: 'Duplicate Items',    desc: 'Same username + domain detection — offline', icon: 'clone' }
+        ]; track check.key) {
+          <div class="settings-toggle-row">
+            <span class="settings-toggle-label">
+              <span class="settings-check-icon"><i class="fas fa-{{ check.icon }}"></i></span>
+              <span>
+                <strong>{{ check.label }}</strong>
+                <small>{{ check.desc }}</small>
+              </span>
+            </span>
+            <p-toggleswitch
+              [ngModel]="getCheckEnabled(check.key)"
+              (ngModelChange)="onPrimeCheckChange(check.key, $event)" />
+          </div>
+        }
+      </div>
+    </div>
+  }
+
+  <!-- ── Scan Progress Bar ───────────────────────────────────────────────── -->
+  @if (wt.isScanning()) {
+    <div class="scan-progress-wrap">
+      <div class="scan-progress-track">
+        <div class="scan-progress-fill" [style.width.%]="scanProgressPercent()"></div>
+      </div>
+      <div class="scan-phase-label">
+        <i class="fas fa-spinner fa-spin"></i>
+        {{ PHASE_LABEL[wt.scanPhase()] }}
+        @if (wt.scanProgress(); as p) {
+          @if (p.totalItems > 0) {
+            <span class="scan-phase-count"> — {{ p.processedItems }} / {{ p.totalItems }}</span>
+          }
+        }
+      </div>
+    </div>
+  }
+
+  <!-- ── Scan Error ─────────────────────────────────────────────────────── -->
+  @if (wt.scanError()) {
+    <div class="scan-error-banner">
+      <i class="fas fa-circle-exclamation"></i>
+      <span>{{ wt.scanError() }}</span>
+      <button class="btn btn-ghost btn-sm" (click)="wt.startScan()">Retry</button>
+    </div>
+  }
+
+  <!-- ── Empty State (no scan yet) ─────────────────────────────────────── -->
+  @if (!wt.results() && !wt.isScanning() && !wt.scanError()) {
+    <div class="empty-state">
+      <div class="empty-shield">
+        <i class="fas fa-shield-halved"></i>
+      </div>
+      <h2>Your vault hasn't been scanned yet</h2>
+      <p>
+        Watchtower checks your passwords against known data breaches, identifies weak or reused
+        passwords, detects insecure sites, and flags missing 2FA — all locally and privately,
+        using HIBP's k-Anonymity model. Nothing leaves your device in identifiable form.
+      </p>
+      <button class="btn btn-primary btn-lg" (click)="wt.startScan()">
+        <i class="fas fa-play"></i> Run Security Scan
+      </button>
+      <div class="empty-checks-grid">
+        <div class="empty-check-item sev-critical">
+          <i class="fas fa-skull-crossbones"></i>
+          <span>Breached passwords</span>
+          <small>HIBP k-Anonymity</small>
+        </div>
+        <div class="empty-check-item sev-high">
+          <i class="fas fa-battery-quarter"></i>
+          <span>Weak passwords</span>
+          <small>zxcvbn entropy analysis</small>
+        </div>
+        <div class="empty-check-item sev-medium">
+          <i class="fas fa-clone"></i>
+          <span>Reused passwords</span>
+          <small>Cross-account dedup</small>
+        </div>
+        <div class="empty-check-item sev-medium">
+          <i class="fas fa-lock-open"></i>
+          <span>Insecure websites</span>
+          <small>HTTP vs HTTPS</small>
+        </div>
+        <div class="empty-check-item sev-low">
+          <i class="fas fa-mobile-screen"></i>
+          <span>Missing 2FA</span>
+          <small>Known 2FA-capable sites</small>
+        </div>
+        <div class="empty-check-item sev-info">
+          <i class="fas fa-copy"></i>
+          <span>Duplicate items</span>
+          <small>Same URI + username</small>
+        </div>
+      </div>
+    </div>
+  }
+
+  <!-- ── Results View ────────────────────────────────────────────────────── -->
+  @if (wt.results(); as results) {
+
+    <!-- Health Score Panel -->
+    <div class="health-panel">
+      <div class="overall-score-wrap">
+        <div class="score-ring-container">
+          <!-- SVG progress ring -->
+          <svg class="score-ring" viewBox="0 0 80 80">
+            <circle class="ring-bg"   cx="40" cy="40" r="34" />
+            <circle class="ring-fill" cx="40" cy="40" r="34"
+                    [attr.stroke]="scoreColor(results.scores.overall)"
+                    [attr.stroke-dasharray]="213.6"
+                    [attr.stroke-dashoffset]="213.6 * (1 - results.scores.overall / 100)" />
+          </svg>
+          <div class="score-ring-label">
+            <span class="score-number" [style.color]="scoreColor(results.scores.overall)">
+              {{ results.scores.overall }}
+            </span>
+            <span class="score-grade">{{ scoreLabel(results.scores.overall) }}</span>
+          </div>
+        </div>
+        <div class="overall-score-info">
+          <div class="health-title">Vault Health Score</div>
+          <div class="health-subtitle">
+            @if (wt.totalIssues() === 0) {
+              <span style="color:var(--accent-green)"><i class="fas fa-check-circle"></i> No issues found</span>
+            } @else {
+              <span>{{ wt.totalIssues() }} issue{{ wt.totalIssues() !== 1 ? 's' : '' }} found</span>
+              @if (wt.criticalCount() > 0) {
+                <span class="critical-badge">{{ wt.criticalCount() }} critical</span>
+              }
+            }
+          </div>
+          <div class="health-scan-meta">
+            Scanned {{ results.scannedItemCount }} login item{{ results.scannedItemCount !== 1 ? 's' : '' }}
+            in {{ (results.scanDurationMs / 1000).toFixed(1) }}s
+          </div>
+        </div>
+      </div>
+
+      <!-- Sub-score bars -->
+      <div class="subscores">
+        <div class="subscore-row">
+          <span class="subscore-label">Breach-Free</span>
+          <div class="subscore-bar">
+            <div class="subscore-fill" [style.width.%]="results.scores.breachFree"
+                 [style.background]="scoreColor(results.scores.breachFree)"></div>
+          </div>
+          <span class="subscore-val" [style.color]="scoreColor(results.scores.breachFree)">
+            {{ results.scores.breachFree }}
+          </span>
+        </div>
+        <div class="subscore-row">
+          <span class="subscore-label">Strength</span>
+          <div class="subscore-bar">
+            <div class="subscore-fill" [style.width.%]="results.scores.strengthScore"
+                 [style.background]="scoreColor(results.scores.strengthScore)"></div>
+          </div>
+          <span class="subscore-val" [style.color]="scoreColor(results.scores.strengthScore)">
+            {{ results.scores.strengthScore }}
+          </span>
+        </div>
+        <div class="subscore-row">
+          <span class="subscore-label">Uniqueness</span>
+          <div class="subscore-bar">
+            <div class="subscore-fill" [style.width.%]="results.scores.uniquenessScore"
+                 [style.background]="scoreColor(results.scores.uniquenessScore)"></div>
+          </div>
+          <span class="subscore-val" [style.color]="scoreColor(results.scores.uniquenessScore)">
+            {{ results.scores.uniquenessScore }}
+          </span>
+        </div>
+        <div class="subscore-row">
+          <span class="subscore-label">HTTPS</span>
+          <div class="subscore-bar">
+            <div class="subscore-fill" [style.width.%]="results.scores.httpsScore"
+                 [style.background]="scoreColor(results.scores.httpsScore)"></div>
+          </div>
+          <span class="subscore-val" [style.color]="scoreColor(results.scores.httpsScore)">
+            {{ results.scores.httpsScore }}
+          </span>
+        </div>
+        <div class="subscore-row">
+          <span class="subscore-label">2FA</span>
+          <div class="subscore-bar">
+            <div class="subscore-fill" [style.width.%]="results.scores.mfaCoverage"
+                 [style.background]="scoreColor(results.scores.mfaCoverage)"></div>
+          </div>
+          <span class="subscore-val" [style.color]="scoreColor(results.scores.mfaCoverage)">
+            {{ results.scores.mfaCoverage }}
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Findings ──────────────────────────────────────────────────────── -->
+    <div class="findings-container">
+
+      <!-- All-clear state -->
+      @if (wt.totalIssues() === 0) {
+        <div class="all-clear-banner">
+          <i class="fas fa-shield-check"></i>
+          <div>
+            <strong>Your vault looks great!</strong>
+            <span>No security issues were found in this scan.</span>
+          </div>
+        </div>
+      }
+
+      <!-- Categories with issues -->
+      @for (entry of sortedCategories(); track entry.category) {
+        <div class="category-card" [class.category-expanded]="isCategoryExpanded(entry.category)">
+          <!-- Category header (click to toggle) -->
+          <div class="category-header" (click)="toggleCategory(entry.category)">
+            <div class="category-header-left">
+              <div class="category-icon-wrap" [style.background]="entry.meta.bgColor" [style.color]="entry.meta.color">
+                <i class="fas {{ entry.meta.faIcon }}"></i>
+              </div>
+              <div class="category-info">
+                <span class="category-label">{{ entry.meta.label }}</span>
+                <span class="category-desc">{{ entry.meta.description }}</span>
+              </div>
+            </div>
+            <div class="category-header-right">
+              <span class="category-count-badge" [style.background]="entry.meta.bgColor" [style.color]="entry.meta.color">
+                {{ entry.findings.length }}
+              </span>
+              <span class="sev-chip" [class]="severityClass(entry.meta.severity)">
+                {{ severityLabel(entry.meta.severity) }}
+              </span>
+              <i class="fas fa-chevron-down category-chevron"
+                 [class.expanded]="isCategoryExpanded(entry.category)"></i>
+            </div>
+          </div>
+
+          <!-- Findings list -->
+          @if (isCategoryExpanded(entry.category)) {
+            <div class="category-findings">
+              @for (finding of entry.findings; track finding.id) {
+                <div class="finding-row">
+                  <div class="finding-icon" [style.color]="entry.meta.color">
+                    <i class="fas fa-{{ finding.vaultItemUri ? 'globe' : 'key' }}"></i>
+                  </div>
+                  <div class="finding-body">
+                    <div class="finding-name">{{ finding.vaultItemName }}</div>
+                    <div class="finding-message">{{ finding.message }}</div>
+                    @if (finding.detail) {
+                      <div class="finding-detail">{{ finding.detail }}</div>
+                    }
+                  </div>
+                  <div class="finding-actions">
+                    @if (finding.vaultItemUri) {
+                      <button class="btn-finding-action" (click)="openUri(finding.vaultItemUri)" title="Open website">
+                        <i class="fas fa-arrow-up-right-from-square"></i>
+                      </button>
+                    }
+                    <div class="snooze-wrap" (click)="$event.stopPropagation()">
+                      <button class="btn-finding-action" title="Snooze"
+                              (click)="toggleSnoozeMenu(finding.id, $event)">
+                        <i class="fas fa-bell-slash"></i>
+                      </button>
+                      @if (snoozeMenuFindingId() === finding.id) {
+                        <div class="snooze-menu">
+                          <button (click)="handleAction(finding, 'snooze_7')">
+                            <i class="fas fa-clock"></i> Snooze 7 days
+                          </button>
+                          <button (click)="handleAction(finding, 'snooze_30')">
+                            <i class="fas fa-calendar"></i> Snooze 30 days
+                          </button>
+                        </div>
+                      }
+                    </div>
+                    <button class="btn-finding-dismiss" title="Dismiss" (click)="handleAction(finding, 'dismiss')">
+                      <i class="fas fa-xmark"></i>
+                    </button>
+                  </div>
+                </div>
+              }
+            </div>
+          }
+        </div>
+      }
+
+      <!-- Clean categories (all clear rows) -->
+      @if (cleanCategories().length > 0 && sortedCategories().length > 0) {
+        <div class="clean-categories">
+          <div class="clean-section-title">All Clear</div>
+          @for (entry of cleanCategories(); track entry.category) {
+            <div class="clean-row">
+              <div class="clean-icon" [style.color]="entry.meta.color">
+                <i class="fas {{ entry.meta.faIcon }}"></i>
+              </div>
+              <span class="clean-label">{{ entry.meta.label }}</span>
+              <span class="clean-check">
+                <i class="fas fa-check-circle" style="color:var(--accent-green)"></i>
+              </span>
+            </div>
+          }
+        </div>
+      }
+
+    </div>
+  }
+
+</div>

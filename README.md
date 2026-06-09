@@ -4,7 +4,7 @@
 
 ### A power-user companion app built on top of Bitwarden.
 
-**Tags · Multi-Tag Filtering · Auto-Type · Smart Views · Expiry Policies · Quick Launcher · Multi-Account · Snapshot Diffing · Custom Icons · Clipboard Auto-Clear · TOTP Panel · Vault Item Templates · Visual Nested Folders**
+**Tags · Multi-Tag Filtering · Auto-Type · Smart Views · Expiry Policies · Quick Launcher · Multi-Account · Snapshot Diffing · Custom Icons · Clipboard Auto-Clear · TOTP Panel · Vault Item Templates · Visual Nested Folders · Watchtower Security Dashboard**
 
 [![Electron](https://img.shields.io/badge/Electron-42-47848F?style=flat-square&logo=electron&logoColor=white)](https://electronjs.org)
 [![Angular](https://img.shields.io/badge/Angular-21-DD0031?style=flat-square&logo=angular&logoColor=white)](https://angular.dev)
@@ -44,6 +44,7 @@ Everything DockWarden does uses the **official Bitwarden CLI** under the hood. Y
 | **Vault snapshot diffing (audit trail)** | ❌ | ❌ | ✅ |
 | **Customizable vault item templates** | ❌ | ❌ | ✅ |
 | **Visual nested folder manager** | ✅ | ❌ | ✅ |
+| **Watchtower security dashboard** | ✅ | ❌ | ✅ |
 | **Custom local icons / favicons (no CDN)** | ❌ | ❌ | ✅ |
 | **Clipboard auto-clear with toast countdown** | ✅ | ⚠️ (extension only) | ✅ |
 | **TOTP panel — all codes at a glance** | ✅ | ❌ | ✅ |
@@ -358,6 +359,49 @@ A small but frequently requested UX improvement: clicking anywhere on a username
 
 ---
 
+### 🛡️ Watchtower — Security Intelligence Dashboard
+
+Watchtower is DockWarden's built-in security monitor, inspired by 1Password's Watchtower but architected entirely on your device — no backend server, no telemetry, and nothing leaves your machine in identifiable form.
+
+**What it checks:**
+
+| Check | How it works | Privacy |
+|---|---|---|
+| **Breached Passwords** | SHA-1 hash of each password; only the first 5 hex characters are sent to the [Have I Been Pwned API](https://haveibeenpwned.com/API/v3#SearchingPwnedPasswordsByRange) (k-Anonymity model) | HIBP never sees your password or the full hash |
+| **Weak Passwords** | Local entropy analysis via **zxcvbn** — no network call | Fully offline |
+| **Reused Passwords** | Cross-item comparison of hashed passwords | Fully offline |
+| **Insecure Websites** | URI scheme check (HTTP vs HTTPS), excluding localhost | Fully offline |
+| **Missing Two-Factor** | Cross-references your vault items with a static list of 2FA-capable domains | Fully offline |
+| **Duplicate Items** | Same URI + same username across multiple items | Fully offline |
+
+**The dashboard:**
+
+- **Vault Health Score (0-100)** — a weighted composite of five sub-scores: Breach-Free, Strength, Uniqueness, HTTPS, and 2FA Coverage, rendered as an animated progress ring
+- **Per-category findings** — collapsible sections, each showing affected items with issue description and detail
+- **Per-finding actions** — dismiss a finding permanently, or snooze it for 7 or 30 days
+- **Scan progress bar** — real-time phase indicator as the scan moves through each check category
+- **Sidebar badge** — a red counter on the Watchtower nav item shows critical issue count at a glance
+- **System tray tooltip** — the tray icon tooltip reflects total issues and critical count after every scan; updates live as you dismiss findings
+- **Auto-clear on lock** — all scan results are erased from memory when the vault locks
+- **Settings panel** — gear icon on the Watchtower page exposes per-check toggles (enable/disable any of the six checks individually) and an auto-scan on unlock toggle; settings persist across restarts
+- **Auto-scan on unlock** — when enabled in settings, a scan starts automatically 1.5 s after vault unlock (giving vault items time to load)
+
+**Privacy architecture:**
+
+- Passwords are never sent anywhere in full — only the 5-character SHA-1 prefix goes to HIBP
+- The `Add-Padding: true` header prevents response-length fingerprinting
+- Worker-level isolation: all sensitive data is processed and discarded in the main process; results contain only item names and messages, never raw credentials
+- Results are ephemeral — not written to `dockwarden-store.json` or any disk file
+
+**How to run a scan:**
+
+1. Navigate to **Watchtower** in the sidebar
+2. Click **Run Security Scan**
+3. The breach check queries HIBP at ~8 requests/second (rate-limited to stay under the 10/sec free tier limit)
+4. All other checks run instantly; a typical 100-item vault completes in under 30 seconds
+
+---
+
 ### 🎨 Custom CSS Editor *(unique to DockWarden)*
 
 A fully-featured in-app CSS editor under **Settings → Advanced**. Retheme the entire application without touching any source files — changes persist across restarts and are applied live as you type.
@@ -559,6 +603,7 @@ export class VaultService {
 | ✅ TOTP Panel | All codes at a glance, live countdown ring, urgency coloring, click-to-copy | **Shipped** |
 | ✅ Vault Item Templates | Template builder, 6 built-in presets, two-step Ctrl+N picker, JSON import/export | **Shipped** |
 | ✅ Visual Nested Folder Manager | Collapsible tree, drag-to-reparent, inline CRUD, cascade rename, nested filtering | **Shipped** |
+| ✅ Watchtower Security Dashboard | HIBP k-Anonymity breach check, zxcvbn strength, reuse, insecure URIs, missing 2FA, duplicate detection, health score ring | **Shipped** |
 | 🚧 Cloud backup adapters | S3, Cloudflare R2, Backblaze B2, WebDAV live | Planned |
 
 ---

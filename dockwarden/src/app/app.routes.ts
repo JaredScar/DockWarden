@@ -85,5 +85,10 @@ export const routes: Routes = [
     loadComponent: () => import('./features/folders/folders.component').then(m => m.FoldersComponent),
     canActivate: [authGuard],
   },
+  {
+    path: 'watchtower',
+    loadComponent: () => import('./features/watchtower/watchtower.component').then(m => m.WatchtowerComponent),
+    canActivate: [authGuard],
+  },
   { path: '**', redirectTo: 'unlock' },
 ];

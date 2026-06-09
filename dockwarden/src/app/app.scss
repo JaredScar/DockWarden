@@ -147,6 +147,35 @@
   }
 }
 
+// Watchtower nav item badge
+.watchtower-icon-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  flex-shrink: 0;
+
+  .nav-icon { position: static; }
+}
+
+.watchtower-badge {
+  position: absolute;
+  top: -6px;
+  right: -8px;
+  background: var(--accent-red);
+  color: #fff;
+  font-size: 8px;
+  font-weight: 800;
+  min-width: 14px;
+  height: 14px;
+  border-radius: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 3px;
+}
+
 .tag-dot {
   width: 8px;
   height: 8px;

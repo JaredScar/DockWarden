@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, inject, signal, computed, ChangeDetectionStrategy } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, signal, computed, effect, ChangeDetectionStrategy } from '@angular/core';
 import { RouterOutlet, RouterLink, RouterLinkActive, Router, NavigationEnd } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { VaultService, AccountProfile } from './core/vault.service';
@@ -6,6 +6,7 @@ import { SmartViewService } from './core/smart-view.service';
 import { ClipboardService } from './core/clipboard.service';
 import { TemplateService } from './core/template.service';
 import { FolderService } from './core/folder.service';
+import { WatchtowerService } from './features/watchtower/watchtower.service';
 import { VaultTemplate } from './shared/models';
 import { CommonModule } from '@angular/common';
 import { filter } from 'rxjs/operators';
@@ -25,7 +26,26 @@ export class App implements OnInit, OnDestroy {
   readonly clipboardService = inject(ClipboardService);
   readonly templateService = inject(TemplateService);
   readonly folderService = inject(FolderService);
+  readonly watchtowerService = inject(WatchtowerService);
+  readonly watchtowerCriticalCount = this.watchtowerService.criticalCount;
   private _kbHandler?: (e: KeyboardEvent) => void;
+
+  constructor() {
+    // Auto-scan on vault unlock when the setting is enabled
+    let previouslyLocked = true;
+    effect(() => {
+      const unlocked = this.isUnlocked();
+      const justUnlocked = unlocked && previouslyLocked;
+      previouslyLocked = !unlocked;
+      if (justUnlocked && this.watchtowerService.settingsLoaded()) {
+        const { autoScanOnUnlock } = this.watchtowerService.settings();
+        if (autoScanOnUnlock) {
+          // Small delay so vault items are populated before the scan starts
+          setTimeout(() => this.watchtowerService.startScan(), 1500);
+        }
+      }
+    });
+  }
 
   readonly stats = this.vaultService.stats;
   readonly allTags = this.vaultService.allTags;

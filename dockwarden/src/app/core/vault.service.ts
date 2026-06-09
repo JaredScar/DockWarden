@@ -132,6 +132,14 @@ declare global {
         save: (template: VaultTemplate) => Promise<boolean>;
         delete: (id: string) => Promise<boolean>;
       };
+      watchtower: {
+        startScan: (items: unknown[], settings?: unknown) => Promise<unknown>;
+        onScanProgress: (callback: (progress: unknown) => void) => void;
+        onScanResults: (callback: (results: unknown) => void) => void;
+        cancelScan: () => void;
+        updateBadge: (total: number, critical: number) => void;
+        removeListeners: () => void;
+      };
       app: {
         getStore: (key: string) => Promise<unknown>;
         setStore: (key: string, value: unknown) => Promise<boolean>;

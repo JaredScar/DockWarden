@@ -1175,6 +1175,326 @@ function setupIpcHandlers() {
     store.set('customIcons', icons);
     return true;
   });
+
+  // ─── Watchtower ────────────────────────────────────────────────────────────
+
+  let watchtowerActive = false;
+
+  ipcMain.handle('watchtower:start-scan', async (_event, serializedItems, settings) => {
+    const crypto = require('crypto');
+    let zxcvbn;
+    try { zxcvbn = require('zxcvbn'); } catch { zxcvbn = null; }
+
+    // Default all checks to enabled if settings not provided
+    const checks = settings?.enabledChecks ?? {};
+    const enabled = {
+      breachedPasswords: checks.breachedPasswords !== false,
+      weakPasswords:     checks.weakPasswords     !== false,
+      reusedPasswords:   checks.reusedPasswords   !== false,
+      insecureUris:      checks.insecureUris       !== false,
+      missingTotp:       checks.missingTotp        !== false,
+      duplicateItems:    checks.duplicateItems     !== false,
+    };
+
+    watchtowerActive = true;
+    const startTime = Date.now();
+    const allFindings = [];
+
+    const sendProgress = (phase, processed, total) => {
+      if (!watchtowerActive) return;
+      mainWindow?.webContents.send('watchtower:scan-progress', {
+        phase, totalItems: total, processedItems: processed, startedAt: startTime,
+      });
+    };
+
+    // ── Helper: k-Anonymity HIBP range lookup ────────────────────────────────
+    async function hibpCheck(password) {
+      const sha1 = crypto.createHash('sha1').update(password).digest('hex').toUpperCase();
+      const prefix = sha1.substring(0, 5);
+      const suffix = sha1.substring(5);
+      try {
+        const res = await fetch(`https://api.pwnedpasswords.com/range/${prefix}`, {
+          headers: { 'User-Agent': 'DockWarden-Watchtower/1.0', 'Add-Padding': 'true' },
+          signal: AbortSignal.timeout(8000),
+        });
+        if (!res.ok) return 0;
+        const text = await res.text();
+        for (const line of text.split('\r\n')) {
+          const [s, c] = line.split(':');
+          if (s === suffix) return parseInt(c, 10) || 0;
+        }
+      } catch { /* network error — skip */ }
+      return 0;
+    }
+
+    // ── Helper: delay for rate limiting ──────────────────────────────────────
+    const delay = (ms) => new Promise(r => setTimeout(r, ms));
+
+    // ── PHASE 1: Breached passwords (HIBP) ───────────────────────────────────
+    sendProgress('checking_breaches', 0, serializedItems.length);
+    if (enabled.breachedPasswords) {
+      const pwToIds = new Map();
+      for (const item of serializedItems) {
+        if (!item.password) continue;
+        const ids = pwToIds.get(item.password) ?? [];
+        ids.push(item.id);
+        pwToIds.set(item.password, ids);
+      }
+
+      let breachProcessed = 0;
+      const breachCounts = new Map();
+
+      for (const [password, ids] of pwToIds) {
+        if (!watchtowerActive) break;
+        const count = await hibpCheck(password);
+        for (const id of ids) breachCounts.set(id, count);
+        breachProcessed += ids.length;
+        sendProgress('checking_breaches', breachProcessed, serializedItems.length);
+        await delay(120); // ~8 req/sec, safely under HIBP's 10/sec free-tier limit
+      }
+
+      for (const [itemId, count] of breachCounts) {
+        if (count === 0) continue;
+        const item = serializedItems.find(i => i.id === itemId);
+        if (!item) continue;
+        allFindings.push({
+          id: crypto.randomUUID(),
+          category: 'breached_password',
+          severity: 'critical',
+          vaultItemId: itemId,
+          vaultItemName: item.name,
+          vaultItemUri: item.uris?.[0] ?? null,
+          message: `Password found in ${count.toLocaleString()} data breach${count !== 1 ? 'es' : ''}`,
+          detail: 'Change this password immediately — it has been publicly exposed',
+          actionLabel: 'Change Password',
+          dismissedAt: null, snoozedUntil: null, detectedAt: Date.now(),
+        });
+      }
+    }
+
+    // ── PHASE 2: Password strength (zxcvbn) ──────────────────────────────────
+    if (!watchtowerActive) goto_complete();
+    sendProgress('checking_strength', 0, serializedItems.length);
+    if (enabled.weakPasswords) {
+      for (const item of serializedItems) {
+        if (!item.password) continue;
+        let score = 2, crackTime = 'unknown', feedback = [];
+        if (zxcvbn) {
+          const r = zxcvbn(item.password, item.username ? [item.username] : []);
+          score = r.score;
+          crackTime = r.crack_times_display?.offline_slow_hashing_1e4_per_second ?? 'unknown';
+          feedback = [
+            ...(r.feedback?.warning ? [r.feedback.warning] : []),
+            ...(r.feedback?.suggestions ?? []),
+          ];
+        } else {
+          const pw = item.password;
+          score = pw.length < 8 ? 0 : pw.length < 10 ? 1 : 2;
+          crackTime = score === 0 ? 'instantly' : 'minutes';
+        }
+        if (score <= 1) {
+          allFindings.push({
+            id: crypto.randomUUID(),
+            category: 'weak_password',
+            severity: 'high',
+            vaultItemId: item.id,
+            vaultItemName: item.name,
+            vaultItemUri: item.uris?.[0] ?? null,
+            message: `Weak password — estimated crack time: ${crackTime}`,
+            detail: feedback.length > 0 ? feedback.slice(0, 2).join('. ') : null,
+            actionLabel: 'Generate Stronger',
+            dismissedAt: null, snoozedUntil: null, detectedAt: Date.now(),
+          });
+        }
+      }
+    }
+    sendProgress('checking_strength', serializedItems.length, serializedItems.length);
+
+    // ── PHASE 3: Reused passwords ─────────────────────────────────────────────
+    if (!watchtowerActive) goto_complete();
+    sendProgress('checking_reuse', 0, serializedItems.length);
+    if (enabled.reusedPasswords) {
+      const pwGroups = new Map();
+      for (const item of serializedItems) {
+        if (!item.password) continue;
+        const g = pwGroups.get(item.password) ?? [];
+        g.push(item);
+        pwGroups.set(item.password, g);
+      }
+      for (const group of pwGroups.values()) {
+        if (group.length < 2) continue;
+        for (const item of group) {
+          const others = group.filter(g => g.id !== item.id).map(g => g.name).slice(0, 3).join(', ');
+          allFindings.push({
+            id: crypto.randomUUID(),
+            category: 'reused_password',
+            severity: 'medium',
+            vaultItemId: item.id,
+            vaultItemName: item.name,
+            vaultItemUri: item.uris?.[0] ?? null,
+            message: `Password reused across ${group.length} accounts`,
+            detail: `Also used by: ${others}`,
+            actionLabel: 'Change Password',
+            dismissedAt: null, snoozedUntil: null, detectedAt: Date.now(),
+          });
+        }
+      }
+    }
+
+    // ── PHASE 4: Insecure URIs ────────────────────────────────────────────────
+    if (!watchtowerActive) goto_complete();
+    sendProgress('checking_uris', 0, serializedItems.length);
+    if (enabled.insecureUris) {
+      for (const item of serializedItems) {
+        for (const uri of (item.uris ?? [])) {
+          if (!uri.startsWith('http://')) continue;
+          try {
+            const u = new URL(uri);
+            if (['localhost', '127.0.0.1', '::1'].includes(u.hostname) || u.hostname.endsWith('.local')) continue;
+          } catch { continue; }
+          allFindings.push({
+            id: crypto.randomUUID(),
+            category: 'insecure_uri',
+            severity: 'medium',
+            vaultItemId: item.id,
+            vaultItemName: item.name,
+            vaultItemUri: uri,
+            message: 'Login page uses unencrypted HTTP',
+            detail: `${uri} — credentials are sent in plain text`,
+            actionLabel: 'Open Item',
+            dismissedAt: null, snoozedUntil: null, detectedAt: Date.now(),
+          });
+          break;
+        }
+      }
+    }
+
+    // ── PHASE 5: Missing TOTP ─────────────────────────────────────────────────
+    if (!watchtowerActive) goto_complete();
+    sendProgress('checking_totp', 0, serializedItems.length);
+    if (enabled.missingTotp) {
+      const totpDomains = new Set([
+        'google.com', 'github.com', 'gitlab.com', 'bitbucket.org',
+        'amazon.com', 'aws.amazon.com', 'microsoft.com', 'live.com',
+        'outlook.com', 'apple.com', 'facebook.com', 'twitter.com',
+        'x.com', 'instagram.com', 'linkedin.com', 'reddit.com',
+        'discord.com', 'slack.com', 'dropbox.com', 'paypal.com',
+        'stripe.com', 'twitch.tv', 'steam.com', 'epicgames.com',
+        'cloudflare.com', 'digitalocean.com', 'heroku.com',
+        'namecheap.com', 'godaddy.com', 'bitwarden.com',
+        'proton.me', 'protonmail.com', 'coinbase.com', 'binance.com',
+        'npmjs.com', 'hub.docker.com', 'shopify.com', 'figma.com',
+        'notion.so', 'atlassian.com', 'vercel.com', 'netlify.com',
+        'railway.app', 'render.com',
+      ]);
+      for (const item of serializedItems) {
+        if (item.totpUri) continue;
+        const matchedDomain = (item.uris ?? [])
+          .map(uri => { try { return new URL(uri).hostname.replace(/^www\./, ''); } catch { return null; } })
+          .find(host => host && totpDomains.has(host));
+        if (matchedDomain) {
+          allFindings.push({
+            id: crypto.randomUUID(),
+            category: 'missing_totp',
+            severity: 'low',
+            vaultItemId: item.id,
+            vaultItemName: item.name,
+            vaultItemUri: item.uris?.[0] ?? null,
+            message: `${matchedDomain} supports 2FA but none is configured`,
+            detail: 'Adding TOTP significantly improves account security',
+            actionLabel: 'Set Up 2FA',
+            dismissedAt: null, snoozedUntil: null, detectedAt: Date.now(),
+          });
+        }
+      }
+    }
+
+    // ── PHASE 6: Duplicate items ──────────────────────────────────────────────
+    if (!watchtowerActive) goto_complete();
+    sendProgress('checking_duplicates', 0, serializedItems.length);
+    if (enabled.duplicateItems) {
+      const seen = new Map();
+      for (const item of serializedItems) {
+        if (!item.username || !item.uris?.length) continue;
+        let host;
+        try { host = new URL(item.uris[0]).hostname.replace(/^www\./, ''); } catch { continue; }
+        const key = `${host}|${item.username.toLowerCase()}`;
+        if (seen.has(key)) {
+          const original = seen.get(key);
+          allFindings.push({
+            id: crypto.randomUUID(),
+            category: 'duplicate_item',
+            severity: 'info',
+            vaultItemId: item.id,
+            vaultItemName: item.name,
+            vaultItemUri: item.uris[0],
+            message: `Possible duplicate of "${original.name}"`,
+            detail: `Both use ${item.username} on ${host}`,
+            actionLabel: 'Review',
+            dismissedAt: null, snoozedUntil: null, detectedAt: Date.now(),
+          });
+        } else {
+          seen.set(key, item);
+        }
+      }
+    }
+
+    // ── Health score ──────────────────────────────────────────────────────────
+    function goto_complete() {}
+
+    const n = serializedItems.length || 1;
+    const count = (cat) => allFindings.filter(f => f.category === cat).length;
+
+    const breachFree     = Math.max(0, Math.round(((n - count('breached_password')) / n) * 100));
+    const strengthScore  = Math.max(0, Math.round(((n - count('weak_password'))     / n) * 100));
+    const uniquenessScore= Math.max(0, Math.round(((n - count('reused_password'))   / n) * 100));
+    const httpsScore     = Math.max(0, Math.round(((n - count('insecure_uri'))      / n) * 100));
+    const mfaCoverage    = Math.max(0, Math.round(((n - count('missing_totp'))      / n) * 100));
+    const overall        = Math.round(
+      breachFree * 0.30 + strengthScore * 0.25 + uniquenessScore * 0.20 +
+      httpsScore * 0.10 + mfaCoverage * 0.15
+    );
+
+    const results = {
+      findings: allFindings,
+      scannedAt: Date.now(),
+      scannedItemCount: serializedItems.length,
+      scanDurationMs: Date.now() - startTime,
+      scores: { overall, breachFree, strengthScore, uniquenessScore, httpsScore, mfaCoverage },
+    };
+
+    watchtowerActive = false;
+
+    // Update tray tooltip with issue count
+    const totalIssues = allFindings.length;
+    const criticalIssues = allFindings.filter(f => f.severity === 'critical').length;
+    if (tray) {
+      if (totalIssues === 0) {
+        tray.setToolTip('DockWarden — Vault Healthy ✓');
+      } else {
+        const critLabel = criticalIssues > 0 ? ` · ${criticalIssues} critical` : '';
+        tray.setToolTip(`DockWarden — ${totalIssues} security issue${totalIssues !== 1 ? 's' : ''}${critLabel}`);
+      }
+    }
+
+    mainWindow?.webContents.send('watchtower:scan-results', results);
+    return results;
+  });
+
+  ipcMain.on('watchtower:cancel-scan', () => {
+    watchtowerActive = false;
+  });
+
+  // Update tray badge from renderer (e.g. after dismiss/snooze changes active count)
+  ipcMain.on('watchtower:update-badge', (_event, { total, critical }) => {
+    if (!tray) return;
+    if (total === 0) {
+      tray.setToolTip('DockWarden — Vault Healthy ✓');
+    } else {
+      const critLabel = critical > 0 ? ` · ${critical} critical` : '';
+      tray.setToolTip(`DockWarden — ${total} security issue${total !== 1 ? 's' : ''}${critLabel}`);
+    }
+  });
 }
 
 function extractBwError(msg) {

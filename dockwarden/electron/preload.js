@@ -71,6 +71,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
     save: (template) => ipcRenderer.invoke('template:save', { template }),
     delete: (id) => ipcRenderer.invoke('template:delete', { id }),
   },
+  watchtower: {
+    startScan: (items, settings) => ipcRenderer.invoke('watchtower:start-scan', items, settings),
+    onScanProgress: (callback) =>
+      ipcRenderer.on('watchtower:scan-progress', (_, progress) => callback(progress)),
+    onScanResults: (callback) =>
+      ipcRenderer.on('watchtower:scan-results', (_, results) => callback(results)),
+    cancelScan: () => ipcRenderer.send('watchtower:cancel-scan'),
+    updateBadge: (total, critical) => ipcRenderer.send('watchtower:update-badge', { total, critical }),
+    removeListeners: () => {
+      ipcRenderer.removeAllListeners('watchtower:scan-progress');
+      ipcRenderer.removeAllListeners('watchtower:scan-results');
+    },
+  },
   app: {
     getStore: (key) => ipcRenderer.invoke('app:get-store', key),
     setStore: (key, value) => ipcRenderer.invoke('app:set-store', { key, value }),
