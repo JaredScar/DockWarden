@@ -1,4 +1,4 @@
-import { Component, inject, signal, ChangeDetectionStrategy, OnInit } from '@angular/core';
+import { Component, inject, signal, computed, ChangeDetectionStrategy, OnInit } from '@angular/core';
 import { Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
@@ -28,6 +28,8 @@ export class UnlockComponent implements OnInit {
   readonly loading = signal(false);
   readonly errorMessage = signal('');
   readonly showAdvanced = signal(false);
+  readonly detectingCli = signal(false);
+  readonly cliMissing = computed(() => this.errorMessage().startsWith('CLI_NOT_FOUND:'));
 
   readonly twoFactorMethods = [
     { value: 0, label: 'Authenticator App (TOTP)' },
@@ -110,5 +112,33 @@ export class UnlockComponent implements OnInit {
     this.mode.set('login');
     this.password.set('');
     this.errorMessage.set('');
+  }
+
+  openSettings(): void {
+    this.router.navigate(['/settings']);
+  }
+
+  async autoDetectCli(): Promise<void> {
+    if (!window.electronAPI || this.detectingCli()) return;
+    this.detectingCli.set(true);
+    try {
+      const result = await window.electronAPI.bw.autoDetect();
+      if (result.found && result.path) {
+        await window.electronAPI.bw.setCliPath(result.path);
+        this.errorMessage.set('');
+        // Retry the check — if it now works, the user can proceed
+        const check = await window.electronAPI.bw.checkCli();
+        if (!check.success) {
+          this.errorMessage.set('CLI_NOT_FOUND: Found a binary at ' + result.path + ' but it did not respond to --version. Open Settings to configure it manually.');
+        }
+      } else {
+        this.errorMessage.set(
+          'CLI_NOT_FOUND: Could not auto-detect the Bitwarden CLI. ' +
+          'Install it with "npm install -g @bitwarden/cli" then open Settings to set the path.'
+        );
+      }
+    } finally {
+      this.detectingCli.set(false);
+    }
   }
 }

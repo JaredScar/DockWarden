@@ -64,8 +64,66 @@ let pending2FAProcess = null; // Live spawn process holding the auth session ope
 // session, so externally substituting a malicious binary path fails silently
 // and the app falls back to the safe default "bw".
 
-const SAFE_BW_BASENAME = /^bw(\.exe)?$/i;
+const SAFE_BW_BASENAME = /^bw(\.exe|\.cmd)?$/i;
 const UNSAFE_DIRS = ['/tmp', '/var/tmp', os.tmpdir()].map(d => path.resolve(d));
+
+// ─── PATH augmentation ────────────────────────────────────────────────────────
+// Electron does not start a login shell, so it often inherits a stripped PATH
+// (e.g. /usr/bin:/bin on macOS/Linux or the bare Windows system PATH).
+// We prepend every well-known directory where the Bitwarden CLI could live so
+// that "bw" resolves without the user having to set a full path.
+function getAugmentedPath() {
+  const home = os.homedir();
+  let extra;
+
+  if (process.platform === 'win32') {
+    extra = [
+      path.join(process.env.APPDATA  || '', 'npm'),
+      path.join(process.env.ProgramFiles || 'C:\\Program Files', 'nodejs'),
+      path.join(process.env.LOCALAPPDATA || '', 'Programs', 'nodejs'),
+      'C:\\Program Files\\nodejs',
+      'C:\\Program Files (x86)\\nodejs',
+    ];
+  } else {
+    extra = [
+      '/usr/local/bin',
+      '/usr/bin',
+      '/opt/homebrew/bin',          // Apple Silicon Homebrew
+      '/opt/homebrew/sbin',
+      '/opt/local/bin',             // MacPorts
+      path.join(home, '.npm-global', 'bin'),
+      path.join(home, '.local', 'bin'),
+      '/snap/bin',                  // Linux Snap
+    ];
+  }
+
+  const current = (process.env.PATH || '').split(path.delimiter).filter(Boolean);
+  // Prepend extras (deduped) so they take priority over any system fallback
+  const merged = [...new Set([...extra, ...current])];
+  return merged.join(path.delimiter);
+}
+
+// Candidate absolute paths for auto-detection (no shell required)
+function getBwCandidates() {
+  const home = os.homedir();
+  if (process.platform === 'win32') {
+    return [
+      path.join(process.env.APPDATA || '', 'npm', 'bw.cmd'),
+      path.join(process.env.ProgramFiles || 'C:\\Program Files', 'nodejs', 'bw.exe'),
+      path.join(process.env.LOCALAPPDATA || '', 'Programs', 'nodejs', 'bw.exe'),
+      'C:\\Program Files\\nodejs\\bw.exe',
+    ];
+  }
+  return [
+    '/usr/local/bin/bw',
+    '/opt/homebrew/bin/bw',
+    '/opt/local/bin/bw',
+    path.join(home, '.npm-global', 'bin', 'bw'),
+    path.join(home, '.local', 'bin', 'bw'),
+    '/snap/bin/bw',
+    '/usr/bin/bw',
+  ];
+}
 
 /**
  * Validate that a path looks like a legitimate Bitwarden CLI binary.
@@ -73,10 +131,12 @@ const UNSAFE_DIRS = ['/tmp', '/var/tmp', os.tmpdir()].map(d => path.resolve(d));
  */
 function validateBwCliPath(p) {
   if (!p || typeof p !== 'string') return 'Path must be a non-empty string';
+  // Allow bare "bw" / "bw.exe" / "bw.cmd" names (resolved via PATH at runtime)
+  if (/^bw(\.exe|\.cmd)?$/i.test(p)) return null;
   const resolved = path.resolve(p);
   const base = path.basename(resolved);
   if (!SAFE_BW_BASENAME.test(base)) {
-    return `Filename must be "bw" or "bw.exe", got "${base}"`;
+    return `Filename must be "bw", "bw.exe", or "bw.cmd" — got "${base}"`;
   }
   // Reject world-writable directories (e.g. /tmp) as install locations
   const dir = path.dirname(resolved);
@@ -130,18 +190,40 @@ function getBwPath() {
   return 'bw';
 }
 
-// Run a bw CLI command and return stdout as a string.
-// Uses spawn({ shell: false }) so arguments are NEVER interpreted by a shell —
-// characters like ; ` $() && in paths/passwords cannot inject commands.
-async function runBw(args, env = {}) {
+// ─── Shared spawn configuration ───────────────────────────────────────────────
+// Returns the bw binary path, shell flag, and fully-augmented environment for
+// every spawn site.  Centralised so PATH augmentation, shell-mode detection,
+// and ENOENT messaging are consistent across runBw and the inline login spawns.
+//
+// Shell-mode rules:
+//  • macOS / Linux  – shell: false (most secure; bw is a real ELF/Mach-O binary)
+//  • Windows        – shell: true  (required because npm installs bw as a .cmd
+//                     wrapper that cmd.exe must interpret).  Args are still passed
+//                     as an array so no injection is possible through them.
+function getBwSpawnConfig(extraEnv = {}) {
   const bwPath = getBwPath();
-  const mergedEnv = { ...process.env, ...env };
+  const useShell = process.platform === 'win32' || bwPath.toLowerCase().endsWith('.cmd');
+  const env = { ...process.env, ...extraEnv, PATH: getAugmentedPath() };
+  return { bwPath, useShell, env };
+}
+
+function makeBwEnoentError() {
+  return new Error(
+    'CLI_NOT_FOUND: Bitwarden CLI not found. ' +
+    'Install it with "npm install -g @bitwarden/cli" and open Settings → ' +
+    'Bitwarden Connection to set the path.'
+  );
+}
+
+// Run a bw CLI command and return stdout as a string.
+async function runBw(args, extraEnv = {}) {
+  const { bwPath, useShell, env } = getBwSpawnConfig(extraEnv);
 
   return new Promise((resolve, reject) => {
     const proc = spawn(bwPath, args, {
-      env: mergedEnv,
-      shell: false,      // no shell: args pass directly to the OS
-      windowsHide: true, // suppress console window flicker on Windows
+      env,
+      shell: useShell,
+      windowsHide: true,
     });
 
     const chunks = [];
@@ -149,7 +231,9 @@ async function runBw(args, env = {}) {
 
     proc.stdout.on('data', d => chunks.push(d));
     proc.stderr.on('data', d => { stderr += d.toString(); });
-    proc.on('error', reject);
+    proc.on('error', err => {
+      reject(err.code === 'ENOENT' ? makeBwEnoentError() : err);
+    });
     proc.on('close', code => {
       if (code === 0) {
         resolve(Buffer.concat(chunks).toString('utf8').trim());
@@ -574,12 +658,12 @@ function setupIpcHandlers() {
     try { if (serverUrl) await runBw(['config', 'server', serverUrl]); } catch { /* non-fatal */ }
 
     return new Promise((resolve) => {
-      const bwPath = getBwPath();
+      const { bwPath, useShell, env: spawnEnv } = getBwSpawnConfig(env);
       // No --nointeraction: bw stays alive waiting on stdin for the 2FA code,
       // so we can pipe it later without triggering a second email.
       const proc = spawn(bwPath,
         ['login', email, '--passwordenv', 'BW_PASSWORD', '--raw'],
-        { env: { ...process.env, ...env }, shell: false, windowsHide: true,
+        { env: spawnEnv, shell: useShell, windowsHide: true,
           stdio: ['pipe', 'pipe', 'pipe'] });
 
       let stdout = '';
@@ -644,7 +728,8 @@ function setupIpcHandlers() {
 
       proc.on('error', err => {
         clearTimeout(timeout);
-        settle({ success: false, error: err.message });
+        const friendly = err.code === 'ENOENT' ? makeBwEnoentError() : err;
+        settle({ success: false, error: friendly.message });
       });
     });
   });
@@ -705,10 +790,10 @@ function setupIpcHandlers() {
 
     // ── Path B: process already exited — spawn fresh and pipe code quickly ────
     return new Promise((resolve) => {
-      const bwPath = getBwPath();
+      const { bwPath, useShell, env: spawnEnv } = getBwSpawnConfig(env);
       const proc = spawn(bwPath,
         ['login', email, '--passwordenv', 'BW_PASSWORD', '--method', String(method), '--raw'],
-        { env: { ...process.env, ...env }, shell: false, windowsHide: true,
+        { env: spawnEnv, shell: useShell, windowsHide: true,
           stdio: ['pipe', 'pipe', 'pipe'] });
 
       let stdout = '';
@@ -746,7 +831,8 @@ function setupIpcHandlers() {
 
       proc.on('error', err => {
         clearTimeout(fallback);
-        resolve({ success: false, error: err.message });
+        const friendly = err.code === 'ENOENT' ? makeBwEnoentError() : err;
+        resolve({ success: false, error: friendly.message });
       });
     });
   });
@@ -1170,6 +1256,8 @@ function setupIpcHandlers() {
     return { success: openExternalSafely(url) };
   });
 
+  ipcMain.handle('app:get-version', () => app.getVersion());
+
   // ─── Settings helpers ──────────────────────────────────────────────────────
 
   ipcMain.handle('bw:get-config', async () => {
@@ -1204,6 +1292,18 @@ function setupIpcHandlers() {
     } catch {
       return { success: false, version: null };
     }
+  });
+
+  ipcMain.handle('bw:auto-detect', async () => {
+    for (const candidate of getBwCandidates()) {
+      try {
+        if (fs.existsSync(candidate)) {
+          const err = validateBwCliPath(candidate);
+          if (!err) return { found: true, path: candidate };
+        }
+      } catch { /* skip */ }
+    }
+    return { found: false, path: null };
   });
 
   // ─── Auto-updater IPC ──────────────────────────────────────────────────────

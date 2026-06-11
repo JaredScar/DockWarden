@@ -96,6 +96,7 @@ declare global {
         getConfig: () => Promise<{ bwEmail: string; bwServerUrl: string; bwCliPath: string; isSessionActive: boolean }>;
         setCliPath: (cliPath: string) => Promise<boolean>;
         checkCli: () => Promise<{ success: boolean; version: string | null }>;
+        autoDetect: () => Promise<{ found: boolean; path: string | null }>;
       };
       backup: {
         runNow: () => Promise<{ success: boolean; timestamp: string; size: string }>;
@@ -147,6 +148,7 @@ declare global {
         setStore: (key: string, value: unknown) => Promise<boolean>;
         notify: (title: string, body: string) => Promise<boolean>;
         openExternal: (url: string) => Promise<void>;
+        getVersion: () => Promise<string>;
       };
       on: (channel: string, callback: (...args: unknown[]) => void) => void;
       removeListener: (channel: string, callback: (...args: unknown[]) => void) => void;

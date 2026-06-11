@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { VaultService, AccountProfile } from '../../core/vault.service';
 import { ClipboardService } from '../../core/clipboard.service';
+import { FeatureFlagsService, FeatureFlags } from '../../core/feature-flags.service';
 import { App } from '../../app';
 
 @Component({
@@ -18,6 +19,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
   private readonly vaultService = inject(VaultService);
   private readonly router = inject(Router);
   readonly clipboardService = inject(ClipboardService);
+  readonly featureFlagsService = inject(FeatureFlagsService);
 
   // ── BW connection ──────────────────────────────────────────────────────────
   readonly bwEmail = signal('');
@@ -26,6 +28,9 @@ export class SettingsComponent implements OnInit, OnDestroy {
   readonly bwCliVersion = signal<string | null>(null);
   readonly bwCliAvailable = signal<boolean | null>(null);
   readonly bwCheckingCli = signal(false);
+
+  // ── App version ────────────────────────────────────────────────────────────
+  readonly appVersion = signal('…');
 
   // ── General settings ───────────────────────────────────────────────────────
   readonly serverUrl = signal('vault.bitwarden.com');
@@ -151,18 +156,20 @@ export class SettingsComponent implements OnInit, OnDestroy {
 
   async ngOnInit(): Promise<void> {
     if (window.electronAPI) {
-      const config = await window.electronAPI.bw.getConfig();
+      const [config, version, saved, profiles, activeId] = await Promise.all([
+        window.electronAPI.bw.getConfig(),
+        window.electronAPI.app.getVersion(),
+        window.electronAPI.app.getStore('customCSS') as Promise<string | null>,
+        window.electronAPI.account.getProfiles(),
+        window.electronAPI.account.getActive(),
+      ]);
+
       if (config.bwEmail) this.bwEmail.set(config.bwEmail);
       if (config.bwServerUrl) this.bwServerUrl.set(config.bwServerUrl);
       if (config.bwCliPath) this.bwCliPath.set(config.bwCliPath);
-
-      const saved = await window.electronAPI.app.getStore('customCSS') as string | null;
+      this.appVersion.set(version ?? '—');
       if (saved) this.customCss.set(saved);
-
-      // Load account profiles
-      const profiles = await window.electronAPI.account.getProfiles();
       this.accountProfiles.set(profiles);
-      const activeId = await window.electronAPI.account.getActive();
       this.activeAccountId.set(activeId);
     }
     await this.checkCli();
@@ -279,5 +286,9 @@ export class SettingsComponent implements OnInit, OnDestroy {
 
   copyVarName(name: string): void {
     navigator.clipboard?.writeText(`var(${name})`);
+  }
+
+  async onFeatureToggle(key: keyof FeatureFlags, value: boolean): Promise<void> {
+    await this.featureFlagsService.setFlag(key, value);
   }
 }

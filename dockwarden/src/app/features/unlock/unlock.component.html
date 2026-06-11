@@ -26,10 +26,38 @@
 
     <!-- Error -->
     @if (errorMessage()) {
-      <div class="error-banner">
-        <i class="fas fa-circle-exclamation"></i>
-        {{ errorMessage() }}
-      </div>
+      @if (cliMissing()) {
+        <div class="error-banner error-banner-cli">
+          <div class="cli-error-header">
+            <i class="fas fa-terminal"></i>
+            <strong>Bitwarden CLI not found</strong>
+          </div>
+          <p class="cli-error-body">
+            DockWarden needs the <code>bw</code> CLI to communicate with your vault.
+            Install it, then retry or open Settings to set a custom path.
+          </p>
+          <div class="cli-error-install">
+            <code>npm install -g &#64;bitwarden/cli</code>
+          </div>
+          <div class="cli-error-actions">
+            <button type="button" class="btn btn-secondary btn-sm" (click)="autoDetectCli()" [disabled]="detectingCli()">
+              @if (detectingCli()) {
+                <i class="fas fa-spinner fa-spin"></i> Detecting…
+              } @else {
+                <i class="fas fa-magnifying-glass"></i> Auto-Detect
+              }
+            </button>
+            <button type="button" class="btn btn-secondary btn-sm" (click)="openSettings()">
+              <i class="fas fa-gear"></i> Open Settings
+            </button>
+          </div>
+        </div>
+      } @else {
+        <div class="error-banner">
+          <i class="fas fa-circle-exclamation"></i>
+          {{ errorMessage() }}
+        </div>
+      }
     }
 
     <form (ngSubmit)="submit()">

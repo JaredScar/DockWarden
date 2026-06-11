@@ -354,7 +354,7 @@
       <div class="settings-row">
         <div class="row-info">
           <span class="row-label">DockWarden</span>
-          <span class="row-sub">Version 1.0.0</span>
+          <span class="row-sub">Version {{ appVersion() }}</span>
         </div>
         <button class="btn btn-secondary btn-sm">Check for Updates</button>
       </div>
@@ -366,6 +366,50 @@
     </div>
   </div><!-- end right col -->
   </div><!-- end settings-grid -->
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       FEATURES — Enable / disable app features
+  ════════════════════════════════════════════════════════════════════════ -->
+  <div class="settings-section card features-section">
+    <div class="section-header">
+      <i class="fas fa-puzzle-piece section-icon"></i>
+      <div>
+        <h3>Features</h3>
+        <p class="section-desc">
+          Enable or disable individual DockWarden features. Changes take effect immediately — disabled features are hidden from the sidebar.
+        </p>
+      </div>
+    </div>
+
+    <div class="features-grid">
+      @for (feature of featureFlagsService.meta; track feature.key) {
+        <div class="feature-card" [class.feature-disabled]="!featureFlagsService.flags()[feature.key]">
+          <div class="feature-card-header">
+            <span class="feature-icon-wrap">
+              <i class="{{ feature.icon }}"></i>
+            </span>
+            <label class="toggle feature-toggle">
+              <input
+                type="checkbox"
+                [ngModel]="featureFlagsService.flags()[feature.key]"
+                (ngModelChange)="onFeatureToggle(feature.key, $event)"
+              />
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="feature-card-body">
+            <span class="feature-name">{{ feature.label }}</span>
+            <span class="feature-desc">{{ feature.description }}</span>
+            @if (feature.restartRequired) {
+              <span class="feature-restart-badge">
+                <i class="fas fa-rotate-right"></i> Restart required
+              </span>
+            }
+          </div>
+        </div>
+      }
+    </div>
+  </div>
 
   <!-- ═══════════════════════════════════════════════════════════════════════
        ADVANCED — Custom CSS Editor

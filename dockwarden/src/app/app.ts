@@ -7,6 +7,7 @@ import { ClipboardService } from './core/clipboard.service';
 import { TemplateService } from './core/template.service';
 import { FolderService } from './core/folder.service';
 import { WatchtowerService } from './features/watchtower/watchtower.service';
+import { FeatureFlagsService } from './core/feature-flags.service';
 import { VaultTemplate } from './shared/models';
 import { CommonModule } from '@angular/common';
 import { filter } from 'rxjs/operators';
@@ -28,6 +29,7 @@ export class App implements OnInit, OnDestroy {
   readonly folderService = inject(FolderService);
   readonly watchtowerService = inject(WatchtowerService);
   readonly watchtowerCriticalCount = this.watchtowerService.criticalCount;
+  readonly featureFlagsService = inject(FeatureFlagsService);
   private _kbHandler?: (e: KeyboardEvent) => void;
 
   constructor() {
@@ -413,6 +415,9 @@ export class App implements OnInit, OnDestroy {
 
       // Pre-load user-defined templates
       await this.templateService.loadTemplates();
+
+      // Load feature flags
+      await this.featureFlagsService.load();
     }
 
     this._kbHandler = (e: KeyboardEvent) => {

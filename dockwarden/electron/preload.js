@@ -33,6 +33,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getConfig: () => ipcRenderer.invoke('bw:get-config'),
     setCliPath: (cliPath) => ipcRenderer.invoke('bw:set-cli-path', { cliPath }),
     checkCli: () => ipcRenderer.invoke('bw:check-cli'),
+    autoDetect: () => ipcRenderer.invoke('bw:auto-detect'),
   },
   backup: {
     runNow: () => ipcRenderer.invoke('backup:run-now'),
@@ -91,6 +92,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     setStore: (key, value) => ipcRenderer.invoke('app:set-store', { key, value }),
     notify: (title, body) => ipcRenderer.invoke('app:notify', { title, body }),
     openExternal: (url) => ipcRenderer.invoke('app:open-external', url),
+    getVersion: () => ipcRenderer.invoke('app:get-version'),
   },
   on: (channel, callback) => {
     const validChannels = [

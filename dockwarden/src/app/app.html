@@ -46,9 +46,11 @@
         <button class="btn-new-item" (click)="openNewItem()" title="New Item (Ctrl+N)">
           <i class="fas fa-plus"></i> New Item
         </button>
-        <button class="btn-icon-sm" (click)="openQuickSearch()" title="Quick Search (Ctrl+Alt+\)">
-          <i class="fas fa-magnifying-glass"></i>
-        </button>
+        @if (featureFlagsService.quickLauncher()) {
+          <button class="btn-icon-sm" (click)="openQuickSearch()" title="Quick Search (Ctrl+Alt+\)">
+            <i class="fas fa-magnifying-glass"></i>
+          </button>
+        }
       </div>
 
       <!-- Nav Items -->
@@ -65,21 +67,24 @@
           <span class="nav-label">All Items</span>
           <span class="nav-count">{{ stats().totalItems }}</span>
         </a>
-        <a routerLink="/watchtower" routerLinkActive="active" class="nav-item nav-item-watchtower">
-          <span class="watchtower-icon-wrap">
-            <i class="fas fa-shield-halved nav-icon"></i>
-            @if (watchtowerCriticalCount() > 0) {
-              <span class="watchtower-badge">{{ watchtowerCriticalCount() > 9 ? '9+' : watchtowerCriticalCount() }}</span>
+        @if (featureFlagsService.watchtower()) {
+          <a routerLink="/watchtower" routerLinkActive="active" class="nav-item nav-item-watchtower">
+            <span class="watchtower-icon-wrap">
+              <i class="fas fa-shield-halved nav-icon"></i>
+              @if (watchtowerCriticalCount() > 0) {
+                <span class="watchtower-badge">{{ watchtowerCriticalCount() > 9 ? '9+' : watchtowerCriticalCount() }}</span>
+              }
+            </span>
+            <span class="nav-label">Watchtower</span>
+            @if (watchtowerService.totalIssues() > 0) {
+              <span class="nav-count nav-count-warn">{{ watchtowerService.totalIssues() }}</span>
             }
-          </span>
-          <span class="nav-label">Watchtower</span>
-          @if (watchtowerService.totalIssues() > 0) {
-            <span class="nav-count nav-count-warn">{{ watchtowerService.totalIssues() }}</span>
-          }
-        </a>
+          </a>
+        }
       </nav>
 
       <!-- Categories: special items + folder tree -->
+      @if (featureFlagsService.folders()) {
       <div class="sidebar-section">
         <div class="section-label" style="display:flex;align-items:center;justify-content:space-between">
           FOLDERS
@@ -259,25 +264,28 @@
           <span class="nav-label">Manage Folders</span>
         </a>
       </div>
+      } <!-- end @if folders -->
 
       <!-- Tags -->
-      <div class="sidebar-section">
-        <div class="section-label">TAGS</div>
-        @for (tag of allTags(); track tag.name) {
-          <a [routerLink]="['/items']"
-             [queryParams]="{ tags: tag.name }"
-             routerLinkActive="active"
-             [routerLinkActiveOptions]="{ exact: true }"
-             class="nav-item nav-item-sm">
-            <span class="tag-dot" [style.background]="tag.color"></span>
-            <span class="nav-label">{{ tag.name }}</span>
-            <span class="nav-count">{{ tag.itemCount }}</span>
-          </a>
-        }
-      </div>
+      @if (featureFlagsService.tags()) {
+        <div class="sidebar-section">
+          <div class="section-label">TAGS</div>
+          @for (tag of allTags(); track tag.name) {
+            <a [routerLink]="['/items']"
+               [queryParams]="{ tags: tag.name }"
+               routerLinkActive="active"
+               [routerLinkActiveOptions]="{ exact: true }"
+               class="nav-item nav-item-sm">
+              <span class="tag-dot" [style.background]="tag.color"></span>
+              <span class="nav-label">{{ tag.name }}</span>
+              <span class="nav-count">{{ tag.itemCount }}</span>
+            </a>
+          }
+        </div>
+      }
 
       <!-- Pinned Smart Views -->
-      @if (pinnedViews().length > 0) {
+      @if (featureFlagsService.smartViews() && pinnedViews().length > 0) {
         <div class="sidebar-section">
           <div class="section-label">VIEWS</div>
           @for (view of pinnedViews(); track view.id) {
@@ -297,41 +305,55 @@
       <!-- Tools -->
       <div class="sidebar-section">
         <div class="section-label">TOOLS</div>
-        <a routerLink="/accounts" routerLinkActive="active" class="nav-item nav-item-sm">
-          <i class="fas fa-users nav-icon-sm"></i>
-          <span class="nav-label">Accounts</span>
-          <span class="nav-count">{{ accounts().length }}</span>
-        </a>
-        <a routerLink="/totp" routerLinkActive="active" class="nav-item nav-item-sm">
-          <i class="fas fa-shield-halved nav-icon-sm"></i>
-          <span class="nav-label">TOTP Codes</span>
-        </a>
-        <a routerLink="/tags" routerLinkActive="active" class="nav-item nav-item-sm">
-          <i class="fas fa-tags nav-icon-sm"></i>
-          <span class="nav-label">Tag Manager</span>
-        </a>
-        <a routerLink="/smart-views" routerLinkActive="active" class="nav-item nav-item-sm">
-          <i class="fas fa-layer-group nav-icon-sm"></i>
-          <span class="nav-label">Smart Views</span>
-        </a>
-        <a routerLink="/expiry" routerLinkActive="active" class="nav-item nav-item-sm">
-          <i class="fas fa-clock nav-icon-sm"></i>
-          <span class="nav-label">Expiring</span>
-          @if (stats().expiringSoon > 0) {
-            <span class="nav-count nav-count-warn">{{ stats().expiringSoon }}</span>
-          }
-        </a>
-        <a routerLink="/templates" routerLinkActive="active" class="nav-item nav-item-sm">
-          <i class="fas fa-layer-group nav-icon-sm"></i>
-          <span class="nav-label">Templates</span>
-          @if (templateService.userTemplates().length > 0) {
-            <span class="nav-count">{{ templateService.userTemplates().length }}</span>
-          }
-        </a>
-        <a routerLink="/backup" routerLinkActive="active" class="nav-item nav-item-sm">
-          <i class="fas fa-database nav-icon-sm"></i>
-          <span class="nav-label">Backups</span>
-        </a>
+        @if (featureFlagsService.accounts()) {
+          <a routerLink="/accounts" routerLinkActive="active" class="nav-item nav-item-sm">
+            <i class="fas fa-users nav-icon-sm"></i>
+            <span class="nav-label">Accounts</span>
+            <span class="nav-count">{{ accounts().length }}</span>
+          </a>
+        }
+        @if (featureFlagsService.totp()) {
+          <a routerLink="/totp" routerLinkActive="active" class="nav-item nav-item-sm">
+            <i class="fas fa-shield-halved nav-icon-sm"></i>
+            <span class="nav-label">TOTP Codes</span>
+          </a>
+        }
+        @if (featureFlagsService.tags()) {
+          <a routerLink="/tags" routerLinkActive="active" class="nav-item nav-item-sm">
+            <i class="fas fa-tags nav-icon-sm"></i>
+            <span class="nav-label">Tag Manager</span>
+          </a>
+        }
+        @if (featureFlagsService.smartViews()) {
+          <a routerLink="/smart-views" routerLinkActive="active" class="nav-item nav-item-sm">
+            <i class="fas fa-layer-group nav-icon-sm"></i>
+            <span class="nav-label">Smart Views</span>
+          </a>
+        }
+        @if (featureFlagsService.expiry()) {
+          <a routerLink="/expiry" routerLinkActive="active" class="nav-item nav-item-sm">
+            <i class="fas fa-clock nav-icon-sm"></i>
+            <span class="nav-label">Expiring</span>
+            @if (stats().expiringSoon > 0) {
+              <span class="nav-count nav-count-warn">{{ stats().expiringSoon }}</span>
+            }
+          </a>
+        }
+        @if (featureFlagsService.templates()) {
+          <a routerLink="/templates" routerLinkActive="active" class="nav-item nav-item-sm">
+            <i class="fas fa-layer-group nav-icon-sm"></i>
+            <span class="nav-label">Templates</span>
+            @if (templateService.userTemplates().length > 0) {
+              <span class="nav-count">{{ templateService.userTemplates().length }}</span>
+            }
+          </a>
+        }
+        @if (featureFlagsService.backup()) {
+          <a routerLink="/backup" routerLinkActive="active" class="nav-item nav-item-sm">
+            <i class="fas fa-database nav-icon-sm"></i>
+            <span class="nav-label">Backups</span>
+          </a>
+        }
       </div>
 
       <!-- Bottom -->
