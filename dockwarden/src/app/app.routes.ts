@@ -27,6 +27,10 @@ export const routes: Routes = [
     loadComponent: () => import('./features/autotype/autotype-picker.component').then(m => m.AutotypePickerComponent),
   },
   {
+    path: 'generate',
+    loadComponent: () => import('./features/generate/generate.component').then(m => m.GenerateComponent),
+  },
+  {
     path: 'unlock',
     loadComponent: () => import('./features/unlock/unlock.component').then(m => m.UnlockComponent),
   },

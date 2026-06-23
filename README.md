@@ -4,7 +4,7 @@
 
 ### A power-user companion app built on top of Bitwarden.
 
-**Tags · Multi-Tag Filtering · Auto-Type · Smart Views · Expiry Policies · Quick Launcher · Multi-Account · Snapshot Diffing · Custom Icons · Clipboard Auto-Clear · TOTP Panel · Vault Item Templates · Visual Nested Folders · Watchtower Security Dashboard**
+**Tags · Multi-Tag Filtering · Auto-Type · Quick Generate · Smart Views · Expiry Policies · Quick Launcher · Multi-Account · Snapshot Diffing · Custom Icons · Clipboard Auto-Clear · TOTP Panel · Vault Item Templates · Visual Nested Folders · Watchtower Security Dashboard**
 
 [![Electron](https://img.shields.io/badge/Electron-42-47848F?style=flat-square&logo=electron&logoColor=white)](https://electronjs.org)
 [![Angular](https://img.shields.io/badge/Angular-21-DD0031?style=flat-square&logo=angular&logoColor=white)](https://angular.dev)
@@ -45,6 +45,7 @@ Everything DockWarden does uses the **official Bitwarden CLI** under the hood. Y
 | **Customizable vault item templates** | ❌ | ❌ | ✅ |
 | **Visual nested folder manager** | ✅ | ❌ | ✅ |
 | **Watchtower security dashboard** | ✅ | ❌ | ✅ |
+| **Quick Generate (one-click create + save + auto-type)** | ✅ | ❌ | ✅ |
 | **Custom local icons / favicons (no CDN)** | ❌ | ❌ | ✅ |
 | **Clipboard auto-clear with toast countdown** | ✅ | ⚠️ (extension only) | ✅ |
 | **TOTP panel — all codes at a glance** | ✅ | ❌ | ✅ |
@@ -98,6 +99,23 @@ A **Spotlight/Alfred-style popup** triggered by `Ctrl+Alt+\` that floats on what
 - Opens on **the monitor you're working on**, not on the DockWarden window
 
 ![Quick Launcher floating popup](docs/screenshots/quick-launcher.png)
+
+---
+
+### ⚡ Quick Generate
+
+Press `Ctrl+Alt+G` from **any application** (or click the ⚡ button in the sidebar) to instantly open a floating credential generator. Before stealing focus, DockWarden reads the title of the currently active window and pre-fills the site name for you — no copy-pasting required.
+
+- **One-click workflow** — generates a strong, cryptographically random password and creates the vault entry in a single action
+- **Three save modes** — *Save & Auto-Type* (types credentials directly into the site), *Save & Copy* (copies password to clipboard), or *Save Only*
+- **Default username** — set a preferred email or username in Settings; it pre-fills every time you open the generator
+- **Inline generator options** — adjust length (8–64), and toggle character sets (A–Z, a–z, 0–9, symbols) directly in the popup
+- **Password strength indicator** — live Weak / Fair / Good / Strong badge on the generated password
+- **Folder assignment** — optionally drop the new item straight into a vault folder
+- **Keyboard-first** — `Ctrl+Enter` triggers Save & Auto-Type; `Esc` closes; `↺` regenerates without saving
+- **Context-aware site detection** — parses "Dashboard — Google Chrome" style window titles to extract a clean hostname
+
+Configure the default username and generator preferences any time from **Settings → Quick Generate**.
 
 ---
 
@@ -486,12 +504,13 @@ npm run electron     # Launch Electron against dist/
 |---|---|
 | `Ctrl+Alt+\` | Open Quick Launcher (on active monitor) |
 | `Ctrl+Alt+A` | Open Auto-Type picker (on active monitor) |
+| `Ctrl+Alt+G` | Open Quick Generate — create, save & auto-type a new login |
 | `Ctrl+N` | New vault item |
 | `Ctrl+E` | Edit selected item |
 | `Ctrl+S` | Sync vault with Bitwarden |
 | `Ctrl+L` | Lock vault |
 
-> Quick Launcher and Auto-Type open as **independent floating windows on the monitor your cursor is on** — not inside the DockWarden window.
+> Quick Launcher, Auto-Type, and Quick Generate open as **independent floating windows on the monitor your cursor is on** — not inside the DockWarden window.
 
 ---
 
@@ -604,6 +623,7 @@ export class VaultService {
 | ✅ Vault Item Templates | Template builder, 6 built-in presets, two-step Ctrl+N picker, JSON import/export | **Shipped** |
 | ✅ Visual Nested Folder Manager | Collapsible tree, drag-to-reparent, inline CRUD, cascade rename, nested filtering | **Shipped** |
 | ✅ Watchtower Security Dashboard | HIBP k-Anonymity breach check, zxcvbn strength, reuse, insecure URIs, missing 2FA, duplicate detection, health score ring | **Shipped** |
+| ✅ Quick Generate | Global `Ctrl+Alt+G` floating generator; auto-detects active window site name; Save & Auto-Type / Copy / Save Only; default username; persistent length + charset settings | **Shipped** |
 | 🚧 Cloud backup adapters | S3, Cloudflare R2, Backblaze B2, WebDAV live | Planned |
 
 ---

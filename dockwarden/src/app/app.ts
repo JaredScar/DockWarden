@@ -270,6 +270,10 @@ export class App implements OnInit, OnDestroy {
     window.electronAPI?.launcher?.openSearch();
   }
 
+  openQuickGenerate(): void {
+    window.electronAPI?.generator?.open();
+  }
+
   openNewItem(templateId?: string | null): void {
     this.newItemName.set('');
     this.newItemUsername.set('');

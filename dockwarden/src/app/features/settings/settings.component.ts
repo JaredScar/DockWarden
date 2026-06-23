@@ -2,10 +2,20 @@ import { Component, signal, inject, OnInit, OnDestroy, ChangeDetectionStrategy }
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import { VaultService, AccountProfile } from '../../core/vault.service';
+import { VaultService, AccountProfile, GeneratorSettings } from '../../core/vault.service';
 import { ClipboardService } from '../../core/clipboard.service';
 import { FeatureFlagsService, FeatureFlags } from '../../core/feature-flags.service';
 import { App } from '../../app';
+
+const DEFAULT_GENERATOR_SETTINGS: GeneratorSettings = {
+  defaultUsername: '',
+  length: 20,
+  upper: true,
+  lower: true,
+  numbers: true,
+  symbols: true,
+  ambiguous: false,
+};
 
 @Component({
   selector: 'app-settings',
@@ -59,6 +69,10 @@ export class SettingsComponent implements OnInit, OnDestroy {
   readonly syncIntervals = ['1 minute', '5 minutes', '15 minutes', '30 minutes', '1 hour'];
   readonly autoLockOptions = ['1 minute', '5 minutes', '15 minutes', '30 minutes', '1 hour', 'Never'];
   readonly themes = ['Dark', 'Light', 'System'];
+
+  // ── Generator settings ─────────────────────────────────────────────────────
+  readonly generatorSettings = signal<GeneratorSettings>({ ...DEFAULT_GENERATOR_SETTINGS });
+  readonly generatorSaved = signal(false);
 
   // ── Custom CSS ─────────────────────────────────────────────────────────────
   readonly customCss = signal('');
@@ -156,12 +170,13 @@ export class SettingsComponent implements OnInit, OnDestroy {
 
   async ngOnInit(): Promise<void> {
     if (window.electronAPI) {
-      const [config, version, saved, profiles, activeId] = await Promise.all([
+      const [config, version, saved, profiles, activeId, genSettings] = await Promise.all([
         window.electronAPI.bw.getConfig(),
         window.electronAPI.app.getVersion(),
         window.electronAPI.app.getStore('customCSS') as Promise<string | null>,
         window.electronAPI.account.getProfiles(),
         window.electronAPI.account.getActive(),
+        window.electronAPI.generator.getSettings(),
       ]);
 
       if (config.bwEmail) this.bwEmail.set(config.bwEmail);
@@ -171,6 +186,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
       if (saved) this.customCss.set(saved);
       this.accountProfiles.set(profiles);
       this.activeAccountId.set(activeId);
+      this.generatorSettings.set({ ...DEFAULT_GENERATOR_SETTINGS, ...genSettings });
     }
     await this.checkCli();
   }
@@ -290,5 +306,19 @@ export class SettingsComponent implements OnInit, OnDestroy {
 
   async onFeatureToggle(key: keyof FeatureFlags, value: boolean): Promise<void> {
     await this.featureFlagsService.setFlag(key, value);
+  }
+
+  // ── Generator settings ─────────────────────────────────────────────────────
+
+  async saveGeneratorSettings(): Promise<void> {
+    if (!window.electronAPI) return;
+    await window.electronAPI.generator.setSettings(this.generatorSettings());
+    this.generatorSaved.set(true);
+    setTimeout(() => this.generatorSaved.set(false), 2000);
+  }
+
+  async openQuickGenerate(): Promise<void> {
+    if (!window.electronAPI) return;
+    await window.electronAPI.generator.open();
   }
 }

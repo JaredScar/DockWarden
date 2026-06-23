@@ -87,6 +87,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.removeAllListeners('watchtower:scan-results');
     },
   },
+  generator: {
+    generate: (opts) => ipcRenderer.invoke('vault:generate', opts),
+    getSettings: () => ipcRenderer.invoke('generator:get-settings'),
+    setSettings: (settings) => ipcRenderer.invoke('generator:set-settings', settings),
+    getActiveWindow: () => ipcRenderer.invoke('vault:get-active-window'),
+    open: () => ipcRenderer.invoke('generator:open'),
+    onSiteHint: (callback) => ipcRenderer.on('generator:site-hint', (_, hint) => callback(hint)),
+    removeListeners: () => ipcRenderer.removeAllListeners('generator:site-hint'),
+  },
   app: {
     getStore: (key) => ipcRenderer.invoke('app:get-store', key),
     setStore: (key, value) => ipcRenderer.invoke('app:set-store', { key, value }),

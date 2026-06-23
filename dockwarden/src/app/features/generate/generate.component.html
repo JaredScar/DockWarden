@@ -1,0 +1,204 @@
+<div class="gen-window">
+
+  <!-- Header -->
+  <div class="gen-header">
+    <div class="gen-header-icon">
+      <i class="fas fa-bolt"></i>
+    </div>
+    <div class="gen-header-text">
+      <h1>Quick Generate</h1>
+      <p>Create &amp; save a login for a site</p>
+    </div>
+    <button class="close-btn" (click)="close()" title="Close (Esc)">
+      <i class="fas fa-times"></i>
+    </button>
+  </div>
+
+  <!-- Vault locked warning -->
+  @if (vaultLocked()) {
+    <div class="gen-locked">
+      <i class="fas fa-lock"></i>
+      <span>Vault is locked — unlock first to save credentials.</span>
+    </div>
+  }
+
+  <!-- Form body -->
+  <div class="gen-body">
+
+    <!-- Site Name + URL -->
+    <div class="field-row">
+      <label class="field-label">
+        <i class="fas fa-globe"></i> Site Name
+      </label>
+      <input class="field-input"
+             type="text"
+             placeholder="GitHub, Netflix, …"
+             [ngModel]="siteName()"
+             (ngModelChange)="siteName.set($event)"
+             [disabled]="saveState() === 'saving'"
+             autofocus />
+    </div>
+
+    <div class="field-row">
+      <label class="field-label">
+        <i class="fas fa-link"></i> URL <span class="optional">(optional)</span>
+      </label>
+      <input class="field-input"
+             type="url"
+             placeholder="https://example.com"
+             [ngModel]="siteUrl()"
+             (ngModelChange)="siteUrl.set($event)"
+             [disabled]="saveState() === 'saving'" />
+    </div>
+
+    <!-- Username -->
+    <div class="field-row">
+      <label class="field-label">
+        <i class="fas fa-user"></i> Username
+      </label>
+      <input class="field-input"
+             type="text"
+             placeholder="me@example.com"
+             [ngModel]="username()"
+             (ngModelChange)="username.set($event)"
+             [disabled]="saveState() === 'saving'" />
+    </div>
+
+    <!-- Password + regenerate -->
+    <div class="field-row">
+      <label class="field-label">
+        <i class="fas fa-key"></i> Password
+        @if (strengthLabel()) {
+          <span class="strength-badge" [class]="strengthLabel()">{{ strengthLabel() }}</span>
+        }
+      </label>
+      <div class="pw-row">
+        <input class="field-input pw-input"
+               [type]="showPw() ? 'text' : 'password'"
+               [value]="password()"
+               readonly />
+        <button class="icon-btn" (click)="showPw.update(v => !v)" [title]="showPw() ? 'Hide' : 'Show'">
+          <i class="fas" [class.fa-eye]="!showPw()" [class.fa-eye-slash]="showPw()"></i>
+        </button>
+        <button class="icon-btn regen-btn"
+                (click)="regenerate()"
+                [disabled]="generating()"
+                title="Generate new password">
+          <i class="fas fa-arrows-rotate" [class.spinning]="generating()"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- Generator options -->
+    <div class="options-row">
+      <div class="length-control">
+        <span class="length-label">Length: <strong>{{ settings().length }}</strong></span>
+        <input class="length-slider"
+               type="range"
+               [min]="sliderMin"
+               [max]="sliderMax"
+               [ngModel]="settings().length"
+               (ngModelChange)="settings.update(s => ({ ...s, length: +$event })); onSettingChange()" />
+      </div>
+      <div class="charset-toggles">
+        <label class="toggle-chip" [class.active]="settings().upper">
+          <input type="checkbox"
+                 [ngModel]="settings().upper"
+                 (ngModelChange)="settings.update(s => ({ ...s, upper: $event })); onSettingChange()" />
+          ABC
+        </label>
+        <label class="toggle-chip" [class.active]="settings().lower">
+          <input type="checkbox"
+                 [ngModel]="settings().lower"
+                 (ngModelChange)="settings.update(s => ({ ...s, lower: $event })); onSettingChange()" />
+          abc
+        </label>
+        <label class="toggle-chip" [class.active]="settings().numbers">
+          <input type="checkbox"
+                 [ngModel]="settings().numbers"
+                 (ngModelChange)="settings.update(s => ({ ...s, numbers: $event })); onSettingChange()" />
+          123
+        </label>
+        <label class="toggle-chip" [class.active]="settings().symbols">
+          <input type="checkbox"
+                 [ngModel]="settings().symbols"
+                 (ngModelChange)="settings.update(s => ({ ...s, symbols: $event })); onSettingChange()" />
+          !@#
+        </label>
+      </div>
+    </div>
+
+    <!-- Folder -->
+    @if (folders().length > 0) {
+      <div class="field-row">
+        <label class="field-label">
+          <i class="fas fa-folder"></i> Folder <span class="optional">(optional)</span>
+        </label>
+        <select class="field-input field-select"
+                [ngModel]="selectedFolder()"
+                (ngModelChange)="selectedFolder.set($event)"
+                [disabled]="saveState() === 'saving'">
+          <option value="">No folder</option>
+          @for (f of folders(); track f.id) {
+            <option [value]="f.id">{{ f.name }}</option>
+          }
+        </select>
+      </div>
+    }
+
+    <!-- Error state -->
+    @if (saveState() === 'error') {
+      <div class="gen-error">
+        <i class="fas fa-circle-exclamation"></i>
+        {{ saveError() }}
+      </div>
+    }
+
+    <!-- Success state -->
+    @if (saveState() === 'done') {
+      <div class="gen-success">
+        <i class="fas fa-circle-check"></i>
+        Login saved! Closing…
+      </div>
+    }
+
+  </div>
+
+  <!-- Action buttons -->
+  <div class="gen-actions">
+    <button class="btn btn-primary"
+            [disabled]="!canSave() || saveState() === 'saving' || saveState() === 'done'"
+            (click)="save('autotype')"
+            title="Save to vault and auto-type credentials (Ctrl+Enter)">
+      @if (saveState() === 'saving') {
+        <i class="fas fa-spinner fa-spin"></i>
+      } @else {
+        <i class="fas fa-keyboard"></i>
+      }
+      Save &amp; Auto-Type
+    </button>
+
+    <button class="btn btn-secondary"
+            [disabled]="!canSave() || saveState() === 'saving' || saveState() === 'done'"
+            (click)="save('copy')"
+            title="Save to vault and copy password to clipboard">
+      <i class="fas fa-clipboard"></i>
+      Save &amp; Copy
+    </button>
+
+    <button class="btn btn-ghost"
+            [disabled]="!canSave() || saveState() === 'saving' || saveState() === 'done'"
+            (click)="save('save')"
+            title="Save to vault only">
+      <i class="fas fa-floppy-disk"></i>
+      Save Only
+    </button>
+  </div>
+
+  <!-- Footer hints -->
+  <div class="gen-footer">
+    <span><kbd>Ctrl+Enter</kbd> Save &amp; Auto-Type</span>
+    <span><kbd>Esc</kbd> Close</span>
+  </div>
+
+</div>

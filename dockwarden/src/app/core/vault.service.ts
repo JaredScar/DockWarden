@@ -61,6 +61,24 @@ export interface CustomIcon {
   bg?: string;
 }
 
+export interface GeneratorOptions {
+  length: number;
+  upper: boolean;
+  lower: boolean;
+  numbers: boolean;
+  symbols: boolean;
+  ambiguous: boolean;
+}
+
+export interface GeneratorSettings extends GeneratorOptions {
+  defaultUsername: string;
+}
+
+export interface SiteHint {
+  name: string;
+  url: string;
+}
+
 declare global {
   interface Window {
     electronAPI?: {
@@ -141,6 +159,15 @@ declare global {
         onScanResults: (callback: (results: unknown) => void) => void;
         cancelScan: () => void;
         updateBadge: (total: number, critical: number) => void;
+        removeListeners: () => void;
+      };
+      generator: {
+        generate: (opts: GeneratorOptions) => Promise<string>;
+        getSettings: () => Promise<GeneratorSettings>;
+        setSettings: (settings: GeneratorSettings) => Promise<boolean>;
+        getActiveWindow: () => Promise<SiteHint>;
+        open: () => Promise<void>;
+        onSiteHint: (callback: (hint: SiteHint) => void) => void;
         removeListeners: () => void;
       };
       app: {

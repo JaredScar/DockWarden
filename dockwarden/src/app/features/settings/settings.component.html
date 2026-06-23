@@ -368,6 +368,102 @@
   </div><!-- end settings-grid -->
 
   <!-- ═══════════════════════════════════════════════════════════════════════
+       QUICK GENERATE — Default username + password generator options
+  ════════════════════════════════════════════════════════════════════════ -->
+  <div class="settings-section card">
+    <div class="section-header">
+      <i class="fas fa-bolt section-icon" style="color: #3b82f6"></i>
+      <div>
+        <h3>Quick Generate</h3>
+        <p class="section-desc">
+          Set your default username and password preferences for the one-click credential generator
+          (<kbd>Ctrl+Alt+G</kbd>).
+        </p>
+      </div>
+      <button class="btn btn-secondary btn-sm" style="margin-left:auto" (click)="openQuickGenerate()">
+        <i class="fas fa-bolt"></i> Open Generator
+      </button>
+    </div>
+
+    <div class="settings-row">
+      <div class="settings-row-label">
+        <span>Default Username / Email</span>
+        <small>Pre-filled whenever you open the generator. Leave blank to fill manually each time.</small>
+      </div>
+      <div class="settings-row-control" style="max-width:260px">
+        <input class="input"
+               type="text"
+               placeholder="me@example.com"
+               [ngModel]="generatorSettings().defaultUsername"
+               (ngModelChange)="generatorSettings.update(s => ({ ...s, defaultUsername: $event }))"
+               (blur)="saveGeneratorSettings()" />
+      </div>
+    </div>
+
+    <div class="settings-row">
+      <div class="settings-row-label">
+        <span>Password Length</span>
+        <small>Number of characters in generated passwords (8 – 64).</small>
+      </div>
+      <div class="settings-row-control" style="display:flex;align-items:center;gap:12px">
+        <input class="input" type="number"
+               style="width:70px;text-align:center"
+               [ngModel]="generatorSettings().length"
+               (ngModelChange)="generatorSettings.update(s => ({ ...s, length: +$event })); saveGeneratorSettings()"
+               min="8" max="64" />
+        <input type="range" min="8" max="64" style="flex:1"
+               [ngModel]="generatorSettings().length"
+               (ngModelChange)="generatorSettings.update(s => ({ ...s, length: +$event })); saveGeneratorSettings()" />
+      </div>
+    </div>
+
+    <div class="settings-row">
+      <div class="settings-row-label">
+        <span>Character Sets</span>
+        <small>Which character types to include in generated passwords.</small>
+      </div>
+      <div class="settings-row-control" style="display:flex;gap:8px;flex-wrap:wrap">
+        <label class="checkbox-label">
+          <input type="checkbox"
+                 [ngModel]="generatorSettings().upper"
+                 (ngModelChange)="generatorSettings.update(s => ({ ...s, upper: $event })); saveGeneratorSettings()" />
+          Uppercase (A–Z)
+        </label>
+        <label class="checkbox-label">
+          <input type="checkbox"
+                 [ngModel]="generatorSettings().lower"
+                 (ngModelChange)="generatorSettings.update(s => ({ ...s, lower: $event })); saveGeneratorSettings()" />
+          Lowercase (a–z)
+        </label>
+        <label class="checkbox-label">
+          <input type="checkbox"
+                 [ngModel]="generatorSettings().numbers"
+                 (ngModelChange)="generatorSettings.update(s => ({ ...s, numbers: $event })); saveGeneratorSettings()" />
+          Numbers (0–9)
+        </label>
+        <label class="checkbox-label">
+          <input type="checkbox"
+                 [ngModel]="generatorSettings().symbols"
+                 (ngModelChange)="generatorSettings.update(s => ({ ...s, symbols: $event })); saveGeneratorSettings()" />
+          Symbols (!@#…)
+        </label>
+        <label class="checkbox-label">
+          <input type="checkbox"
+                 [ngModel]="generatorSettings().ambiguous"
+                 (ngModelChange)="generatorSettings.update(s => ({ ...s, ambiguous: $event })); saveGeneratorSettings()" />
+          Allow ambiguous (0/O/I/l)
+        </label>
+      </div>
+    </div>
+
+    @if (generatorSaved()) {
+      <div class="save-confirmation">
+        <i class="fas fa-check"></i> Generator settings saved
+      </div>
+    }
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
        FEATURES — Enable / disable app features
   ════════════════════════════════════════════════════════════════════════ -->
   <div class="settings-section card features-section">

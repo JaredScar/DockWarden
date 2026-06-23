@@ -574,6 +574,195 @@ function openLauncherWindow(mode) {
   });
 }
 
+// ─── Password generator ───────────────────────────────────────────────────────
+// Fully local — no bw CLI required. Uses Node crypto for CSPRNG entropy.
+const CHARSET = {
+  upper:   'ABCDEFGHIJKLMNOPQRSTUVWXYZ',
+  lower:   'abcdefghijklmnopqrstuvwxyz',
+  numbers: '0123456789',
+  symbols: '!@#$%^&*()-_=+[]{}|;:,.<>?',
+};
+
+function generatePassword(opts = {}) {
+  const {
+    length   = 20,
+    upper    = true,
+    lower    = true,
+    numbers  = true,
+    symbols  = true,
+    ambiguous = false, // exclude 0/O/I/l when false
+  } = opts;
+
+  const { randomInt } = require('crypto');
+
+  let pool = '';
+  if (upper)   pool += CHARSET.upper;
+  if (lower)   pool += CHARSET.lower;
+  if (numbers) pool += CHARSET.numbers;
+  if (symbols) pool += CHARSET.symbols;
+  if (!pool)   pool = CHARSET.lower + CHARSET.numbers;   // sane fallback
+
+  // Strip visually ambiguous characters when the user prefers readability
+  if (!ambiguous) pool = pool.replace(/[0OIl]/g, '');
+
+  // Build password, ensuring at least one char from each enabled class
+  const required = [];
+  if (upper   && pool.match(/[A-Z]/)) required.push(pool.match(/[A-Z]/g)[randomInt(pool.match(/[A-Z]/g).length)]);
+  if (lower   && pool.match(/[a-z]/)) required.push(pool.match(/[a-z]/g)[randomInt(pool.match(/[a-z]/g).length)]);
+  if (numbers && pool.match(/[0-9]/)) required.push(pool.match(/[0-9]/g)[randomInt(pool.match(/[0-9]/g).length)]);
+  if (symbols && pool.match(/[^A-Za-z0-9]/)) {
+    const sym = pool.match(/[^A-Za-z0-9]/g);
+    required.push(sym[randomInt(sym.length)]);
+  }
+
+  const rest = Math.max(0, length - required.length);
+  const chars = required.concat(
+    Array.from({ length: rest }, () => pool[randomInt(pool.length)])
+  );
+  // Fisher-Yates shuffle for uniformly random order
+  for (let i = chars.length - 1; i > 0; i--) {
+    const j = randomInt(i + 1);
+    [chars[i], chars[j]] = [chars[j], chars[i]];
+  }
+  return chars.join('');
+}
+
+// ─── Active-window title detection ───────────────────────────────────────────
+// Best-effort: captures the focused app/browser title BEFORE the generator
+// window opens, so the site-name field can be pre-filled.
+async function getActiveWindowTitle() {
+  try {
+    if (process.platform === 'win32') {
+      const { randomInt } = require('crypto');
+      const script = `
+Add-Type @"
+using System;using System.Text;using System.Runtime.InteropServices;
+public class WinFW {
+  [DllImport("user32.dll")]public static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll")]public static extern int GetWindowText(IntPtr h,StringBuilder s,int n);
+}
+"@
+$h=[WinFW]::GetForegroundWindow();$s=New-Object System.Text.StringBuilder 512;[WinFW]::GetWindowText($h,$s,512)|Out-Null;$s.ToString()`.trim();
+      return await new Promise((resolve) => {
+        const proc = spawn('powershell',
+          ['-NoProfile', '-NonInteractive', '-Command', script],
+          { env: { ...process.env, PATH: getAugmentedPath() }, shell: false, windowsHide: true }
+        );
+        let out = '';
+        proc.stdout.on('data', d => { out += d.toString(); });
+        proc.on('close', () => resolve(out.trim()));
+        proc.on('error', () => resolve(''));
+      });
+    } else if (process.platform === 'darwin') {
+      return await new Promise((resolve) => {
+        const proc = spawn('osascript',
+          ['-e', 'tell application "System Events" to get title of front window of (first application process whose frontmost is true)'],
+          { env: { ...process.env, PATH: getAugmentedPath() }, shell: false }
+        );
+        let out = '';
+        proc.stdout.on('data', d => { out += d.toString(); });
+        proc.on('close', () => resolve(out.trim()));
+        proc.on('error', () => resolve(''));
+      });
+    }
+  } catch { /* non-fatal */ }
+  return '';
+}
+
+// Extract a tidy site name / hostname from a window title like:
+//   "GitHub · Build software together — Mozilla Firefox"
+//   "Dashboard - Netlify - Google Chrome"
+function parseSiteFromTitle(title) {
+  if (!title) return { name: '', url: '' };
+
+  // Strip common browser suffixes
+  const stripped = title
+    .replace(/\s[–—-]\s*(Google Chrome|Firefox|Microsoft Edge|Safari|Brave|Opera|Arc)\s*$/i, '')
+    .replace(/\s[–—-]\s*(Mozilla Firefox)\s*$/i, '')
+    .trim();
+
+  // Try to detect a URL in the title (rare but possible)
+  const urlMatch = stripped.match(/https?:\/\/[^\s]+/);
+  if (urlMatch) {
+    try {
+      const parsed = new URL(urlMatch[0]);
+      return { name: parsed.hostname.replace(/^www\./, ''), url: parsed.href };
+    } catch {}
+  }
+
+  // Use the last " - " or " – " separated segment as the site name
+  const parts = stripped.split(/\s[–—-]\s/);
+  const name = (parts[parts.length - 1] || stripped).trim();
+  return { name, url: '' };
+}
+
+// ─── Quick Generator window ───────────────────────────────────────────────────
+let activeGeneratorWindow = null;
+
+async function openGeneratorWindow() {
+  if (activeGeneratorWindow && !activeGeneratorWindow.isDestroyed()) {
+    activeGeneratorWindow.focus();
+    return;
+  }
+
+  // Capture the active window title BEFORE we steal focus
+  const rawTitle = await getActiveWindowTitle();
+  const siteHint = parseSiteFromTitle(rawTitle);
+
+  const cursorPt = screen.getCursorScreenPoint();
+  const display  = screen.getDisplayNearestPoint(cursorPt);
+  const { x: dx, y: dy, width: dw, height: dh } = display.workArea;
+
+  const WIN_W = 480;
+  const WIN_H = 580;
+  const winX  = dx + Math.round((dw - WIN_W) / 2);
+  const winY  = dy + Math.round(dh * 0.10);
+
+  activeGeneratorWindow = new BrowserWindow({
+    width: WIN_W,
+    height: WIN_H,
+    x: winX,
+    y: winY,
+    frame: false,
+    resizable: false,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    show: false,
+    backgroundColor: '#161b22',
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+      webviewTag: false,
+    },
+  });
+
+  const hash = '/generate';
+  if (fs.existsSync(distIndexPath) && !isDev) {
+    activeGeneratorWindow.loadFile(distIndexPath, { hash });
+  } else {
+    activeGeneratorWindow.loadURL(`http://localhost:4200/#${hash}`);
+  }
+
+  activeGeneratorWindow.once('ready-to-show', () => {
+    activeGeneratorWindow?.show();
+    activeGeneratorWindow?.focus();
+    // Send the site hint as soon as the renderer is ready
+    activeGeneratorWindow?.webContents.send('generator:site-hint', siteHint);
+  });
+
+  // Send the hint again after a short delay in case the renderer wasn't ready
+  setTimeout(() => {
+    if (activeGeneratorWindow && !activeGeneratorWindow.isDestroyed()) {
+      activeGeneratorWindow.webContents.send('generator:site-hint', siteHint);
+    }
+  }, 800);
+
+  activeGeneratorWindow.on('blur', () => { activeGeneratorWindow?.close(); });
+  activeGeneratorWindow.on('closed', () => { activeGeneratorWindow = null; });
+}
+
 // Cached items — available instantly to launcher windows
 ipcMain.handle('vault:get-cached-items', () => itemsCache);
 
@@ -611,6 +800,11 @@ function registerGlobalShortcuts() {
 
   globalShortcut.register('CmdOrCtrl+Alt+A', () => {
     openLauncherWindow('autotype');
+  });
+
+  // Quick Generate — opens the generator floating window
+  globalShortcut.register('CmdOrCtrl+Alt+G', () => {
+    openGeneratorWindow();
   });
 
   globalShortcut.register('CmdOrCtrl+L', () => {
@@ -1304,6 +1498,46 @@ function setupIpcHandlers() {
       } catch { /* skip */ }
     }
     return { found: false, path: null };
+  });
+
+  // ─── Password Generator IPC ────────────────────────────────────────────────
+
+  ipcMain.handle('vault:generate', (_, opts = {}) => {
+    // Sanitise options from renderer (untrusted input)
+    const length  = Math.min(128, Math.max(8, Number(opts.length)  || 20));
+    const upper   = opts.upper   !== false;
+    const lower   = opts.lower   !== false;
+    const numbers = opts.numbers !== false;
+    const symbols = !!opts.symbols;
+    const ambiguous = !!opts.ambiguous;
+    return generatePassword({ length, upper, lower, numbers, symbols, ambiguous });
+  });
+
+  ipcMain.handle('vault:get-active-window', async () => {
+    const rawTitle = await getActiveWindowTitle();
+    return parseSiteFromTitle(rawTitle);
+  });
+
+  ipcMain.handle('generator:get-settings', () => {
+    return store.get('generatorSettings', {
+      defaultUsername: '',
+      length: 20,
+      upper: true,
+      lower: true,
+      numbers: true,
+      symbols: true,
+      ambiguous: false,
+    });
+  });
+
+  ipcMain.handle('generator:set-settings', (_, settings) => {
+    if (!settings || typeof settings !== 'object') return false;
+    store.set('generatorSettings', settings);
+    return true;
+  });
+
+  ipcMain.handle('generator:open', () => {
+    openGeneratorWindow();
   });
 
   // ─── Auto-updater IPC ──────────────────────────────────────────────────────
