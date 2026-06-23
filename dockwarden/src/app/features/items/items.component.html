@@ -109,6 +109,11 @@
             @if (getExpiryBadge(item); as badge) {
               <span class="badge {{ badge.class }}">{{ badge.label }}</span>
             }
+            @for (risk of getItemRiskLabels(item.id); track risk.findingId) {
+              <span class="risk-pill {{ risk.cls }}" [title]="risk.message">
+                <i class="fas {{ risk.icon }}"></i>{{ risk.short }}
+              </span>
+            }
           </div>
         }
       }
@@ -272,6 +277,23 @@
                 </div>
               }
             }
+          </div>
+        }
+
+        <!-- SECURITY ALERTS (Watchtower findings for this item) -->
+        @if (!editing() && getItemRiskLabels(item.id).length > 0) {
+          <div class="field-group risk-alerts-group">
+            <div class="field-label">SECURITY ALERTS</div>
+            <div class="risk-alerts-list">
+              @for (risk of getItemRiskLabels(item.id); track risk.findingId) {
+                <div class="risk-alert-row {{ risk.cls }}-alert">
+                  <span class="risk-alert-pill {{ risk.cls }}">
+                    <i class="fas {{ risk.icon }}"></i>{{ risk.label }}
+                  </span>
+                  <span class="risk-alert-message">{{ risk.message }}</span>
+                </div>
+              }
+            </div>
           </div>
         }
 

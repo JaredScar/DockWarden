@@ -7,11 +7,34 @@ import { VaultService, CustomIcon } from '../../core/vault.service';
 import { SmartViewService } from '../../core/smart-view.service';
 import { ClipboardService } from '../../core/clipboard.service';
 import { FolderService } from '../../core/folder.service';
+import { WatchtowerService } from '../watchtower/watchtower.service';
+import { WatchtowerCategory, Severity } from '../watchtower/watchtower.models';
 import { VaultItem } from '../../shared/models';
 import Fuse from 'fuse.js';
 
 const PRESET_EMOJIS = ['🔑','🏦','💳','📧','🛒','🏠','💼','🔒','🌐','📱','🖥️','⚙️','☁️','🎮','🎵','📚','🏥','✈️','🔐','💡'];
 const PRESET_COLORS = ['#ef4444','#f97316','#f59e0b','#22c55e','#14b8a6','#3b82f6','#8b5cf6','#ec4899'];
+
+// Risk label metadata keyed by WatchtowerCategory
+const RISK_LABEL_META: Record<WatchtowerCategory, { label: string; short: string; icon: string; cls: string }> = {
+  [WatchtowerCategory.BREACHED_PASSWORD]: { label: 'Breached',     short: 'Breached', icon: 'fa-biohazard',            cls: 'risk-breached' },
+  [WatchtowerCategory.WEAK_PASSWORD]:     { label: 'Weak',         short: 'Weak',     icon: 'fa-unlock',               cls: 'risk-weak' },
+  [WatchtowerCategory.REUSED_PASSWORD]:   { label: 'Reused',       short: 'Reused',   icon: 'fa-clone',                cls: 'risk-reused' },
+  [WatchtowerCategory.INSECURE_URI]:      { label: 'Insecure URL', short: 'HTTP',     icon: 'fa-triangle-exclamation', cls: 'risk-insecure' },
+  [WatchtowerCategory.MISSING_TOTP]:      { label: 'No 2FA',       short: 'No 2FA',   icon: 'fa-shield-halved',        cls: 'risk-no2fa' },
+  [WatchtowerCategory.DUPLICATE_ITEM]:    { label: 'Duplicate',    short: 'Dupe',     icon: 'fa-copy',                 cls: 'risk-duplicate' },
+};
+
+export interface RiskLabel {
+  category: WatchtowerCategory;
+  label: string;
+  short: string;
+  icon: string;
+  cls: string;
+  severity: Severity;
+  message: string;
+  findingId: string;
+}
 
 @Component({
   selector: 'app-items',
@@ -28,6 +51,7 @@ export class ItemsComponent implements OnInit, OnDestroy {
   private readonly folderService = inject(FolderService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  readonly watchtowerService = inject(WatchtowerService);
   private paramSub?: Subscription;
   private _editHandler?: () => void;
 
@@ -419,6 +443,19 @@ export class ItemsComponent implements OnInit, OnDestroy {
   onItemDragStart(event: DragEvent, itemId: string): void {
     event.dataTransfer?.setData('dw-item-id', itemId);
     if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
+  }
+
+  /** Returns risk labels for an item based on active Watchtower findings. */
+  getItemRiskLabels(itemId: string): RiskLabel[] {
+    const findings = this.watchtowerService.findingsByItemId().get(itemId);
+    if (!findings?.length) return [];
+    return findings.map(f => ({
+      ...RISK_LABEL_META[f.category],
+      category: f.category,
+      severity: f.severity,
+      message: f.message,
+      findingId: f.id,
+    }));
   }
 
   getExpiryBadge(item: VaultItem): { label: string; class: string } | null {

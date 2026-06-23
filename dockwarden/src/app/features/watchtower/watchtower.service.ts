@@ -80,6 +80,17 @@ export class WatchtowerService {
     return grouped;
   });
 
+  /** O(1) lookup: map from vaultItemId → all active findings for that item */
+  readonly findingsByItemId = computed(() => {
+    const map = new Map<string, WatchtowerFinding[]>();
+    for (const f of this.activeFindings()) {
+      const list = map.get(f.vaultItemId) ?? [];
+      list.push(f);
+      map.set(f.vaultItemId, list);
+    }
+    return map;
+  });
+
   readonly healthScore  = computed(() => this.results()?.scores ?? null);
   readonly totalIssues  = computed(() => this.activeFindings().length);
   readonly criticalCount = computed(() =>
