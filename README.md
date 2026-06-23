@@ -4,7 +4,7 @@
 
 ### A power-user companion app built on top of Bitwarden.
 
-**Tags · Multi-Tag Filtering · Auto-Type · Quick Generate · Smart Views · Expiry Policies · Quick Launcher · Multi-Account · Snapshot Diffing · Custom Icons · Clipboard Auto-Clear · TOTP Panel · Vault Item Templates · Visual Nested Folders · Watchtower Security Dashboard**
+**Tags · Multi-Tag Filtering · Auto-Type · Quick Generate · Offline Edit Queue · Smart Views · Expiry Policies · Quick Launcher · Multi-Account · Snapshot Diffing · Custom Icons · Clipboard Auto-Clear · TOTP Panel · Vault Item Templates · Visual Nested Folders · Watchtower Security Dashboard**
 
 [![Electron](https://img.shields.io/badge/Electron-42-47848F?style=flat-square&logo=electron&logoColor=white)](https://electronjs.org)
 [![Angular](https://img.shields.io/badge/Angular-21-DD0031?style=flat-square&logo=angular&logoColor=white)](https://angular.dev)
@@ -46,6 +46,7 @@ Everything DockWarden does uses the **official Bitwarden CLI** under the hood. Y
 | **Visual nested folder manager** | ✅ | ❌ | ✅ |
 | **Watchtower security dashboard** | ✅ | ❌ | ✅ |
 | **Quick Generate (one-click create + save + auto-type)** | ✅ | ❌ | ✅ |
+| **Offline edit queue with conflict resolver** | ❌ | ❌ | ✅ |
 | **Custom local icons / favicons (no CDN)** | ❌ | ❌ | ✅ |
 | **Clipboard auto-clear with toast countdown** | ✅ | ⚠️ (extension only) | ✅ |
 | **TOTP panel — all codes at a glance** | ✅ | ❌ | ✅ |
@@ -99,6 +100,22 @@ A **Spotlight/Alfred-style popup** triggered by `Ctrl+Alt+\` that floats on what
 - Opens on **the monitor you're working on**, not on the DockWarden window
 
 ![Quick Launcher floating popup](docs/screenshots/quick-launcher.png)
+
+---
+
+### 📡 Offline Edit Queue
+
+DockWarden caches your vault in memory — and now that cache backs you up when connectivity drops. If `bw sync` fails due to a network error, DockWarden silently switches to **offline mode** and continues accepting edits and new item creation without any interruption to your workflow.
+
+- **Automatic detection** — no manual toggle; DockWarden detects the network failure on sync and starts queuing transparently
+- **Encrypted at rest** — the queue is encrypted with `electron.safeStorage` (OS keychain / DPAPI) before being persisted to disk; passwords are never stored in plaintext
+- **Optimistic UI** — edited and newly created items appear in the vault immediately, clearly marked as pending, so your workflow isn't blocked
+- **Amber status banner** — a subtle bottom banner shows how many edits are pending and lets you flush the queue with one click the moment you're back online
+- **Conflict resolver** — if an item was edited both offline and on the server (e.g. from the Bitwarden web app), a side-by-side conflict resolver lets you choose per-item: keep your offline change or keep the server version
+- **Queue drawer** — open the queue at any time to review pending operations and discard any you no longer want
+- **Survived app restart** — the encrypted queue is loaded from disk on the next launch; nothing is lost even if the app is closed while offline
+
+> Deletes are intentionally **not** queued — they require a live connection to prevent silent data loss from race conditions.
 
 ---
 
@@ -624,6 +641,7 @@ export class VaultService {
 | ✅ Visual Nested Folder Manager | Collapsible tree, drag-to-reparent, inline CRUD, cascade rename, nested filtering | **Shipped** |
 | ✅ Watchtower Security Dashboard | HIBP k-Anonymity breach check, zxcvbn strength, reuse, insecure URIs, missing 2FA, duplicate detection, health score ring | **Shipped** |
 | ✅ Quick Generate | Global `Ctrl+Alt+G` floating generator; auto-detects active window site name; Save & Auto-Type / Copy / Save Only; default username; persistent length + charset settings | **Shipped** |
+| ✅ Offline Edit Queue | Auto-detects network failure on sync; safeStorage-encrypted queue; optimistic UI; amber status banner; per-item conflict resolver; queue drawer with discard; survives app restart | **Shipped** |
 | 🚧 Cloud backup adapters | S3, Cloudflare R2, Backblaze B2, WebDAV live | Planned |
 
 ---

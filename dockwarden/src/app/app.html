@@ -589,6 +589,161 @@
 
   </div>
 
+  <!-- ── Offline Mode Banner ──────────────────────────────────────────────── -->
+  @if (offlineQueue.isOffline() || offlineQueue.queueLength() > 0) {
+    <div class="offline-banner" [class.has-queue]="offlineQueue.queueLength() > 0">
+      <div class="offline-banner-left">
+        <i class="fas" [class.fa-wifi-slash]="offlineQueue.isOffline()" [class.fa-cloud-arrow-up]="!offlineQueue.isOffline()"></i>
+        @if (offlineQueue.isOffline()) {
+          <span>
+            <strong>Offline mode</strong> — edits are queued locally and will sync when your connection is restored.
+            @if (offlineQueue.queueLength() > 0) {
+              <span class="offline-queue-count">{{ offlineQueue.queueLength() }} pending</span>
+            }
+          </span>
+        } @else {
+          <span>
+            <strong>Back online</strong> — <span class="offline-queue-count">{{ offlineQueue.queueLength() }} edit{{ offlineQueue.queueLength() === 1 ? '' : 's' }}</span> waiting to sync.
+          </span>
+        }
+      </div>
+      <div class="offline-banner-right">
+        @if (!offlineQueue.isOffline() && offlineQueue.queueLength() > 0) {
+          <button class="offline-btn offline-btn-primary"
+                  [disabled]="offlineQueue.flushing()"
+                  (click)="offlineQueue.flushQueue()">
+            @if (offlineQueue.flushing()) {
+              <i class="fas fa-spinner fa-spin"></i> Syncing…
+            } @else {
+              <i class="fas fa-cloud-arrow-up"></i> Sync Now
+            }
+          </button>
+        }
+        <button class="offline-btn offline-btn-ghost" (click)="showOfflineQueue.update(v => !v)" title="View queued edits">
+          <i class="fas fa-list-ul"></i> Queue
+        </button>
+        @if (offlineQueue.isOffline()) {
+          <button class="offline-btn offline-btn-ghost" (click)="offlineQueue.setOfflineMode(false)" title="Try to go online">
+            <i class="fas fa-rotate"></i> Retry
+          </button>
+        }
+      </div>
+    </div>
+  }
+
+  <!-- ── Offline Queue Drawer ─────────────────────────────────────────────── -->
+  @if (showOfflineQueue()) {
+    <div class="offline-drawer-backdrop" (click)="showOfflineQueue.set(false)"></div>
+    <div class="offline-drawer">
+      <div class="offline-drawer-header">
+        <i class="fas fa-list-ul"></i>
+        <h3>Offline Queue</h3>
+        <span class="offline-drawer-count">{{ offlineQueue.queueLength() }} pending</span>
+        <button class="btn-icon" (click)="showOfflineQueue.set(false)"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="offline-drawer-body">
+        @if (offlineQueue.queue().length === 0) {
+          <div class="offline-drawer-empty">
+            <i class="fas fa-check-circle"></i>
+            <span>All changes have been synced.</span>
+          </div>
+        }
+        @for (entry of offlineQueue.queue(); track entry.id) {
+          <div class="offline-queue-entry">
+            <div class="offline-queue-entry-icon">
+              <i class="fas" [class.fa-plus]="entry.operation === 'create'" [class.fa-pencil]="entry.operation === 'edit'"></i>
+            </div>
+            <div class="offline-queue-entry-info">
+              <span class="offline-queue-entry-name">{{ entry.name }}</span>
+              <span class="offline-queue-entry-meta">
+                {{ entry.operation === 'create' ? 'New item' : 'Edited: ' + offlineQueue.formatChangedFields(entry.changedFields) }}
+                · {{ offlineQueue.formatTime(entry.timestamp) }}
+              </span>
+            </div>
+            <button class="offline-queue-entry-discard" title="Discard this change"
+                    (click)="offlineQueue.discardEntry(entry.id)">
+              <i class="fas fa-trash"></i>
+            </button>
+          </div>
+        }
+      </div>
+      @if (offlineQueue.flushError()) {
+        <div class="offline-drawer-error">
+          <i class="fas fa-circle-exclamation"></i> {{ offlineQueue.flushError() }}
+        </div>
+      }
+      @if (offlineQueue.queueLength() > 0 && !offlineQueue.isOffline()) {
+        <div class="offline-drawer-footer">
+          <button class="btn btn-primary btn-sm" [disabled]="offlineQueue.flushing()" (click)="offlineQueue.flushQueue()">
+            <i class="fas fa-cloud-arrow-up"></i> Sync All Now
+          </button>
+        </div>
+      }
+    </div>
+  }
+
+  <!-- ── Conflict Resolver Modal ──────────────────────────────────────────── -->
+  @if (offlineQueue.hasConflicts()) {
+    <div class="modal-backdrop" (click)="offlineQueue.dismissConflicts()"></div>
+    <div class="modal conflict-modal" role="dialog" aria-modal="true">
+      <div class="modal-header">
+        <div class="modal-title">
+          <i class="fas fa-code-merge" style="color:#f59e0b"></i>
+          Sync Conflicts
+        </div>
+        <button class="btn-icon" (click)="offlineQueue.dismissConflicts()"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="modal-body">
+        <p class="conflict-intro">
+          The following items were edited both offline and on the server. Choose which version to keep for each item.
+        </p>
+        <div class="conflict-list">
+          @for (conflict of offlineQueue.conflicts(); track conflict.entryId) {
+            <div class="conflict-item">
+              <div class="conflict-item-header">
+                <i class="fas fa-key conflict-item-icon"></i>
+                <span class="conflict-item-name">{{ conflict.name }}</span>
+                <span class="conflict-item-fields">{{ offlineQueue.formatChangedFields(conflict.changedFields) }}</span>
+              </div>
+              <div class="conflict-item-meta">
+                <span class="conflict-timestamp"><i class="fas fa-clock"></i> Queued {{ offlineQueue.formatTime(conflict.queuedAt) }}</span>
+                <span class="conflict-timestamp"><i class="fas fa-cloud"></i> Remote changed {{ offlineQueue.formatTime(conflict.remoteModifiedAt) }}</span>
+              </div>
+              <div class="conflict-choices">
+                <label class="conflict-choice" [class.selected]="offlineQueue.resolutions()[conflict.entryId] === 'apply'">
+                  <input type="radio" [name]="'conflict-' + conflict.entryId" value="apply"
+                         [checked]="offlineQueue.resolutions()[conflict.entryId] === 'apply'"
+                         (change)="offlineQueue.setResolution(conflict.entryId, 'apply')" />
+                  <i class="fas fa-laptop"></i>
+                  <span>Keep my offline version</span>
+                </label>
+                <label class="conflict-choice" [class.selected]="offlineQueue.resolutions()[conflict.entryId] === 'discard'">
+                  <input type="radio" [name]="'conflict-' + conflict.entryId" value="discard"
+                         [checked]="offlineQueue.resolutions()[conflict.entryId] === 'discard'"
+                         (change)="offlineQueue.setResolution(conflict.entryId, 'discard')" />
+                  <i class="fas fa-cloud"></i>
+                  <span>Keep server version (discard my change)</span>
+                </label>
+              </div>
+            </div>
+          }
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" (click)="offlineQueue.dismissConflicts()">Decide Later</button>
+        <button class="btn btn-primary"
+                [disabled]="!offlineQueue.allResolved() || offlineQueue.flushing()"
+                (click)="offlineQueue.applyResolutions()">
+          @if (offlineQueue.flushing()) {
+            <i class="fas fa-spinner fa-spin"></i> Applying…
+          } @else {
+            <i class="fas fa-check"></i> Apply Choices
+          }
+        </button>
+      </div>
+    </div>
+  }
+
   <!-- Clipboard Auto-Clear Toast -->
   @if (clipboardService.activeField()) {
     <div class="clipboard-toast">

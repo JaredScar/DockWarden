@@ -57,6 +57,213 @@ let bwSession = null;
 let pending2FA = null;      // { email, serverUrl, env }
 let pending2FAProcess = null; // Live spawn process holding the auth session open
 
+// ─── Offline Edit Queue ───────────────────────────────────────────────────────
+// Entries are encrypted with safeStorage (OS keychain) before being written
+// to the store so passwords are never at rest in plaintext.
+//
+// Entry shape:
+//   { id, operation: 'create'|'edit', itemId?, item, patch?,
+//     revisionDate?, timestamp, name, itemType }
+
+let isOfflineMode = false;
+let offlineQueue   = [];          // in-memory; persisted encrypted to store
+
+const OFFLINE_QUEUE_STORE_KEY = 'offlineQueue_enc';
+
+function isNetworkError(msg = '') {
+  const m = msg.toLowerCase();
+  return (
+    m.includes('econnrefused') || m.includes('enotfound') ||
+    m.includes('etimedout')    || m.includes('econnreset') ||
+    m.includes('network error') || m.includes('unable to connect') ||
+    m.includes('failed to fetch') || m.includes('err_network') ||
+    m.includes('getaddrinfo')  || m.includes('socket hang up') ||
+    m.includes('connect econnrefused')
+  );
+}
+
+function loadOfflineQueue() {
+  try {
+    const enc = store.get(OFFLINE_QUEUE_STORE_KEY, null);
+    if (!enc) { offlineQueue = []; return; }
+    if (safeStorage.isEncryptionAvailable()) {
+      const json = safeStorage.decryptString(Buffer.from(enc, 'base64'));
+      offlineQueue = JSON.parse(json) || [];
+    } else {
+      // Fallback: store was plaintext (safeStorage unavailable at time of writing)
+      offlineQueue = JSON.parse(Buffer.from(enc, 'base64').toString('utf8')) || [];
+    }
+  } catch {
+    offlineQueue = [];
+  }
+}
+
+function saveOfflineQueue() {
+  try {
+    const json = JSON.stringify(offlineQueue);
+    if (safeStorage.isEncryptionAvailable()) {
+      const enc = safeStorage.encryptString(json).toString('base64');
+      store.set(OFFLINE_QUEUE_STORE_KEY, enc);
+    } else {
+      // Degrade gracefully — warn but persist as base64 plaintext
+      console.warn('[offline-queue] safeStorage unavailable — queue stored as base64 plaintext');
+      store.set(OFFLINE_QUEUE_STORE_KEY, Buffer.from(json).toString('base64'));
+    }
+  } catch (e) {
+    console.error('[offline-queue] failed to persist queue:', e.message);
+  }
+}
+
+function addToOfflineQueue(entry) {
+  const { randomUUID } = require('crypto');
+  // Collapse multiple edits to the same item into one queue entry
+  if (entry.operation === 'edit' && entry.itemId) {
+    const existing = offlineQueue.findIndex(e => e.operation === 'edit' && e.itemId === entry.itemId);
+    if (existing >= 0) {
+      // Merge patch: later values overwrite earlier ones
+      offlineQueue[existing].patch = { ...offlineQueue[existing].patch, ...entry.patch };
+      offlineQueue[existing].timestamp = entry.timestamp;
+      saveOfflineQueue();
+      return offlineQueue[existing];
+    }
+  }
+  const queued = { id: randomUUID(), ...entry };
+  offlineQueue.push(queued);
+  saveOfflineQueue();
+  return queued;
+}
+
+function removeFromOfflineQueue(entryId) {
+  offlineQueue = offlineQueue.filter(e => e.id !== entryId);
+  saveOfflineQueue();
+}
+
+function setOfflineMode(value) {
+  if (isOfflineMode === value) return;
+  isOfflineMode = value;
+  mainWindow?.webContents.send('offline:status-changed', {
+    offline: value,
+    queueLength: offlineQueue.length,
+  });
+  // Update tray tooltip
+  if (tray) {
+    tray.setToolTip(value
+      ? `DockWarden — Offline (${offlineQueue.length} pending)`
+      : 'DockWarden');
+  }
+}
+
+// Strip sensitive credential data from queue entries before sending to renderer
+function sanitiseQueueEntry(entry) {
+  return {
+    id: entry.id,
+    operation: entry.operation,
+    itemId: entry.itemId,
+    name: entry.name,
+    itemType: entry.itemType,
+    timestamp: entry.timestamp,
+    // Only send field names changed, not values — renderer uses these for display only
+    changedFields: entry.patch ? Object.keys(entry.patch) : [],
+    revisionDate: entry.revisionDate || null,
+  };
+}
+
+// Apply a patch object (from an offline edit entry) to a fetched bw item in-place
+function applyPatchToItem(item, patch) {
+  if (!patch) return;
+  if (patch.name !== undefined) item.name = patch.name;
+  if (patch.notes !== undefined) item.notes = patch.notes || null;
+  if (patch.folderId !== undefined) item.folderId = patch.folderId || null;
+  if (item.type === 1) {
+    item.login = item.login || {};
+    if (patch.username !== undefined) item.login.username = patch.username || null;
+    if (patch.password !== undefined) item.login.password = patch.password || null;
+    if (patch.website !== undefined) {
+      item.login.uris = patch.website ? [{ match: null, uri: patch.website }] : [];
+    }
+  }
+  if (patch.tags !== undefined) {
+    item.fields = item.fields || [];
+    const idx = item.fields.findIndex(f => f.name === '_dw_tags');
+    const tagValue = patch.tags.join(',');
+    if (idx >= 0) item.fields[idx].value = tagValue;
+    else item.fields.push({ name: '_dw_tags', value: tagValue, type: 0 });
+  }
+  if (patch.expiresAt !== undefined) {
+    item.fields = item.fields || [];
+    const idx = item.fields.findIndex(f => f.name === '_dw_expires');
+    if (idx >= 0) item.fields[idx].value = patch.expiresAt ?? '';
+    else if (patch.expiresAt) item.fields.push({ name: '_dw_expires', value: patch.expiresAt, type: 0 });
+  }
+}
+
+// Flush all queued operations. Returns { applied, conflicts, errors }
+// Conflicts are sent to the renderer for user resolution.
+async function flushOfflineQueue() {
+  if (offlineQueue.length === 0) return { applied: 0, conflicts: [], errors: [] };
+
+  const applied = [];
+  const conflicts = [];
+  const errors = [];
+
+  // Process creates first (they have no conflict risk)
+  const creates = offlineQueue.filter(e => e.operation === 'create');
+  for (const entry of creates) {
+    try {
+      const encoded = Buffer.from(JSON.stringify(entry.item)).toString('base64');
+      const result = await runBw(['create', 'item', encoded, '--session', bwSession]);
+      const created = JSON.parse(result);
+      const realItem = mapBwItem(created);
+      // Replace the temp item in cache with the real one
+      itemsCache = itemsCache.map(i => i.id === entry.itemId ? realItem : i);
+      removeFromOfflineQueue(entry.id);
+      applied.push({ entryId: entry.id, operation: 'create', name: entry.name });
+    } catch (err) {
+      errors.push({ entryId: entry.id, name: entry.name, error: err.message });
+    }
+  }
+
+  // Process edits — detect conflicts by comparing revisionDate
+  const edits = offlineQueue.filter(e => e.operation === 'edit');
+  for (const entry of edits) {
+    try {
+      const current = await runBwJson(['get', 'item', entry.itemId, '--session', bwSession]);
+      const currentRevision = current.revisionDate || current.lastModifiedDate || null;
+
+      // Conflict: remote was modified after we queued the edit
+      if (entry.revisionDate && currentRevision && currentRevision !== entry.revisionDate) {
+        conflicts.push({
+          entryId: entry.id,
+          itemId: entry.itemId,
+          name: entry.name,
+          itemType: entry.itemType,
+          changedFields: Object.keys(entry.patch || {}),
+          queuedAt: entry.timestamp,
+          remoteModifiedAt: currentRevision,
+        });
+        continue; // Leave in queue; user must resolve
+      }
+
+      // No conflict — apply
+      applyPatchToItem(current, entry.patch);
+      const encoded = Buffer.from(JSON.stringify(current)).toString('base64');
+      await runBw(['edit', 'item', entry.itemId, encoded, '--session', bwSession]);
+      removeFromOfflineQueue(entry.id);
+      applied.push({ entryId: entry.id, operation: 'edit', name: entry.name });
+    } catch (err) {
+      errors.push({ entryId: entry.id, name: entry.name, error: err.message });
+    }
+  }
+
+  // Notify renderer of updated queue and any conflicts
+  mainWindow?.webContents.send('offline:queue-updated', { queue: offlineQueue.map(sanitiseQueueEntry) });
+  if (conflicts.length > 0) {
+    mainWindow?.webContents.send('offline:conflicts-detected', { conflicts });
+  }
+
+  return { applied: applied.length, conflicts, errors };
+}
+
 // ─── bwCliPath — stored encrypted via safeStorage ────────────────────────────
 // safeStorage ties the encrypted blob to the OS credential manager
 // (DPAPI/Keychain/libsecret).  An attacker editing dockwarden-store.json
@@ -1108,18 +1315,48 @@ function setupIpcHandlers() {
       };
       store.set('vaultSnapshots', [newSnap, ...snaps].slice(0, 50));
 
+      // Sync succeeded — clear offline mode and attempt queue flush
+      if (isOfflineMode) setOfflineMode(false);
+      let flushResult = null;
+      if (offlineQueue.length > 0) {
+        flushResult = await flushOfflineQueue();
+      }
+
       return {
         success: true,
         itemCount: items.length,
         syncedAt: new Date().toISOString(),
+        flushResult,
       };
     } catch (err) {
+      // Network error → activate offline mode
+      if (isNetworkError(err.message)) {
+        setOfflineMode(true);
+        return { success: false, error: err.message, offline: true };
+      }
       return { success: false, error: err.message };
     }
   });
 
   ipcMain.handle('vault:edit-item', async (_, { id, patch }) => {
     if (!bwSession) return { success: false, error: 'Not unlocked' };
+
+    // ── Offline mode: queue the edit ─────────────────────────────────────────
+    if (isOfflineMode) {
+      const cached = itemsCache.find(i => i.id === id);
+      const queued = addToOfflineQueue({
+        operation: 'edit',
+        itemId: id,
+        patch,
+        revisionDate: cached?.lastModified || null,
+        timestamp: new Date().toISOString(),
+        name: cached?.name || id,
+        itemType: cached?.type || 'login',
+      });
+      mainWindow?.webContents.send('offline:queue-updated', { queue: offlineQueue.map(sanitiseQueueEntry) });
+      return { success: true, queued: true, queueEntryId: queued.id };
+    }
+
     try {
       const item = await runBwJson(['get', 'item', id, '--session', bwSession]);
 
@@ -1162,6 +1399,22 @@ function setupIpcHandlers() {
       await runBw(['edit', 'item', id, encoded, '--session', bwSession]);
       return { success: true, id };
     } catch (err) {
+      // Auto-switch to offline mode on network error and queue the edit
+      if (isNetworkError(err.message)) {
+        setOfflineMode(true);
+        const cached = itemsCache.find(i => i.id === id);
+        const queued = addToOfflineQueue({
+          operation: 'edit',
+          itemId: id,
+          patch,
+          revisionDate: cached?.lastModified || null,
+          timestamp: new Date().toISOString(),
+          name: cached?.name || id,
+          itemType: cached?.type || 'login',
+        });
+        mainWindow?.webContents.send('offline:queue-updated', { queue: offlineQueue.map(sanitiseQueueEntry) });
+        return { success: true, queued: true, queueEntryId: queued.id };
+      }
       return { success: false, error: err.message };
     }
   });
@@ -1181,6 +1434,40 @@ function setupIpcHandlers() {
 
   ipcMain.handle('vault:create-item', async (_, { item }) => {
     if (!bwSession) return { success: false, error: 'Vault is locked. Please unlock first.' };
+
+    // ── Offline mode: queue the create ──────────────────────────────────────
+    if (isOfflineMode) {
+      const { randomUUID } = require('crypto');
+      const tempId = `dw-offline-${randomUUID()}`;
+      const queued = addToOfflineQueue({
+        operation: 'create',
+        itemId: tempId,
+        item,
+        timestamp: new Date().toISOString(),
+        name: item.name || 'Untitled',
+        itemType: item.type === 1 ? 'login' : 'note',
+      });
+      // Return a fake mapped item so the UI shows it immediately
+      const fakeItem = {
+        id: tempId,
+        name: item.name || 'Untitled',
+        type: item.type === 1 ? 'login' : 'secure-note',
+        username: item.login?.username || null,
+        password: item.login?.password || null,
+        website: item.login?.uris?.[0]?.uri || null,
+        notes: item.notes || null,
+        folderId: item.folderId || null,
+        tags: [],
+        totp: null,
+        favorite: false,
+        lastModified: new Date().toISOString(),
+        _offlineQueued: true,
+      };
+      itemsCache = [fakeItem, ...itemsCache];
+      mainWindow?.webContents.send('offline:queue-updated', { queue: offlineQueue.map(sanitiseQueueEntry) });
+      return { success: true, queued: true, item: fakeItem, queueEntryId: queued.id };
+    }
+
     try {
       // bw create item expects base64-encoded JSON (same as what `bw encode` produces)
       const encoded = Buffer.from(JSON.stringify(item)).toString('base64');
@@ -1188,6 +1475,38 @@ function setupIpcHandlers() {
       const created = JSON.parse(result);
       return { success: true, item: mapBwItem(created) };
     } catch (err) {
+      // Auto-switch to offline mode on network error and queue the create
+      if (isNetworkError(extractBwError(err.message) || err.message)) {
+        setOfflineMode(true);
+        const { randomUUID } = require('crypto');
+        const tempId = `dw-offline-${randomUUID()}`;
+        const queued = addToOfflineQueue({
+          operation: 'create',
+          itemId: tempId,
+          item,
+          timestamp: new Date().toISOString(),
+          name: item.name || 'Untitled',
+          itemType: item.type === 1 ? 'login' : 'note',
+        });
+        const fakeItem = {
+          id: tempId,
+          name: item.name || 'Untitled',
+          type: item.type === 1 ? 'login' : 'secure-note',
+          username: item.login?.username || null,
+          password: item.login?.password || null,
+          website: item.login?.uris?.[0]?.uri || null,
+          notes: item.notes || null,
+          folderId: item.folderId || null,
+          tags: [],
+          totp: null,
+          favorite: false,
+          lastModified: new Date().toISOString(),
+          _offlineQueued: true,
+        };
+        itemsCache = [fakeItem, ...itemsCache];
+        mainWindow?.webContents.send('offline:queue-updated', { queue: offlineQueue.map(sanitiseQueueEntry) });
+        return { success: true, queued: true, item: fakeItem, queueEntryId: queued.id };
+      }
       return { success: false, error: extractBwError(err.message) };
     }
   });
@@ -1498,6 +1817,62 @@ function setupIpcHandlers() {
       } catch { /* skip */ }
     }
     return { found: false, path: null };
+  });
+
+  // ─── Offline Queue IPC ─────────────────────────────────────────────────────
+
+  ipcMain.handle('offline:get-status', () => ({
+    offline: isOfflineMode,
+    queue: offlineQueue.map(sanitiseQueueEntry),
+  }));
+
+  ipcMain.handle('offline:set-mode', (_, { offline }) => {
+    setOfflineMode(!!offline);
+    return { offline: isOfflineMode };
+  });
+
+  ipcMain.handle('offline:discard-entry', (_, { entryId }) => {
+    // If it was a queued create with a temp ID, remove the fake item from cache
+    const entry = offlineQueue.find(e => e.id === entryId);
+    if (entry?.operation === 'create' && entry.itemId?.startsWith('dw-offline-')) {
+      itemsCache = itemsCache.filter(i => i.id !== entry.itemId);
+    }
+    removeFromOfflineQueue(entryId);
+    mainWindow?.webContents.send('offline:queue-updated', { queue: offlineQueue.map(sanitiseQueueEntry) });
+    return { success: true };
+  });
+
+  ipcMain.handle('offline:flush-queue', async () => {
+    if (!bwSession) return { success: false, error: 'Vault is locked.' };
+    return await flushOfflineQueue();
+  });
+
+  ipcMain.handle('offline:resolve-conflicts', async (_, { resolutions }) => {
+    // resolutions: [{ entryId, action: 'apply'|'discard' }]
+    if (!bwSession) return { success: false, error: 'Vault is locked.' };
+    const results = [];
+    for (const { entryId, action } of resolutions) {
+      const entry = offlineQueue.find(e => e.id === entryId);
+      if (!entry) continue;
+      if (action === 'discard') {
+        removeFromOfflineQueue(entryId);
+        results.push({ entryId, applied: false });
+        continue;
+      }
+      // Apply: re-run the edit with the queued patch
+      try {
+        const item = await runBwJson(['get', 'item', entry.itemId, '--session', bwSession]);
+        applyPatchToItem(item, entry.patch);
+        const encoded = Buffer.from(JSON.stringify(item)).toString('base64');
+        await runBw(['edit', 'item', entry.itemId, encoded, '--session', bwSession]);
+        removeFromOfflineQueue(entryId);
+        results.push({ entryId, applied: true });
+      } catch (err) {
+        results.push({ entryId, applied: false, error: err.message });
+      }
+    }
+    mainWindow?.webContents.send('offline:queue-updated', { queue: offlineQueue.map(sanitiseQueueEntry) });
+    return { success: true, results };
   });
 
   // ─── Password Generator IPC ────────────────────────────────────────────────
@@ -2246,6 +2621,7 @@ app.whenReady().then(() => {
   createMainWindow();
   createTray();
   registerGlobalShortcuts();
+  loadOfflineQueue();   // Restore any queued edits from the previous session
   setupIpcHandlers();
 
   // ─── Auto-updater ──────────────────────────────────────────────────────────

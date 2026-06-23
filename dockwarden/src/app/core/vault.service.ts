@@ -61,6 +61,32 @@ export interface CustomIcon {
   bg?: string;
 }
 
+export interface OfflineQueueEntry {
+  id: string;
+  operation: 'create' | 'edit';
+  itemId: string;
+  name: string;
+  itemType: string;
+  timestamp: string;
+  changedFields: string[];
+  revisionDate: string | null;
+}
+
+export interface ConflictItem {
+  entryId: string;
+  itemId: string;
+  name: string;
+  itemType: string;
+  changedFields: string[];
+  queuedAt: string;
+  remoteModifiedAt: string;
+}
+
+export interface ConflictResolution {
+  entryId: string;
+  action: 'apply' | 'discard';
+}
+
 export interface GeneratorOptions {
   length: number;
   upper: boolean;
@@ -168,6 +194,17 @@ declare global {
         getActiveWindow: () => Promise<SiteHint>;
         open: () => Promise<void>;
         onSiteHint: (callback: (hint: SiteHint) => void) => void;
+        removeListeners: () => void;
+      };
+      offline: {
+        getStatus: () => Promise<{ offline: boolean; queue: OfflineQueueEntry[] }>;
+        setMode: (offline: boolean) => Promise<{ offline: boolean }>;
+        flushQueue: () => Promise<{ applied: number; conflicts: ConflictItem[]; errors: unknown[] }>;
+        discardEntry: (entryId: string) => Promise<{ success: boolean }>;
+        resolveConflicts: (resolutions: ConflictResolution[]) => Promise<{ success: boolean; results: unknown[] }>;
+        onStatusChanged: (cb: (data: { offline: boolean; queueLength: number }) => void) => void;
+        onQueueUpdated: (cb: (data: { queue: OfflineQueueEntry[] }) => void) => void;
+        onConflictsDetected: (cb: (data: { conflicts: ConflictItem[] }) => void) => void;
         removeListeners: () => void;
       };
       app: {

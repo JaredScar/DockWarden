@@ -96,6 +96,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
     onSiteHint: (callback) => ipcRenderer.on('generator:site-hint', (_, hint) => callback(hint)),
     removeListeners: () => ipcRenderer.removeAllListeners('generator:site-hint'),
   },
+  offline: {
+    getStatus: () => ipcRenderer.invoke('offline:get-status'),
+    setMode: (offline) => ipcRenderer.invoke('offline:set-mode', { offline }),
+    flushQueue: () => ipcRenderer.invoke('offline:flush-queue'),
+    discardEntry: (entryId) => ipcRenderer.invoke('offline:discard-entry', { entryId }),
+    resolveConflicts: (resolutions) => ipcRenderer.invoke('offline:resolve-conflicts', { resolutions }),
+    onStatusChanged: (cb) => ipcRenderer.on('offline:status-changed', (_, data) => cb(data)),
+    onQueueUpdated: (cb) => ipcRenderer.on('offline:queue-updated', (_, data) => cb(data)),
+    onConflictsDetected: (cb) => ipcRenderer.on('offline:conflicts-detected', (_, data) => cb(data)),
+    removeListeners: () => {
+      ipcRenderer.removeAllListeners('offline:status-changed');
+      ipcRenderer.removeAllListeners('offline:queue-updated');
+      ipcRenderer.removeAllListeners('offline:conflicts-detected');
+    },
+  },
   app: {
     getStore: (key) => ipcRenderer.invoke('app:get-store', key),
     setStore: (key, value) => ipcRenderer.invoke('app:set-store', { key, value }),

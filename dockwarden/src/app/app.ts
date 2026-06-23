@@ -8,6 +8,7 @@ import { TemplateService } from './core/template.service';
 import { FolderService } from './core/folder.service';
 import { WatchtowerService } from './features/watchtower/watchtower.service';
 import { FeatureFlagsService } from './core/feature-flags.service';
+import { OfflineQueueService } from './core/offline-queue.service';
 import { VaultTemplate } from './shared/models';
 import { CommonModule } from '@angular/common';
 import { filter } from 'rxjs/operators';
@@ -30,6 +31,7 @@ export class App implements OnInit, OnDestroy {
   readonly watchtowerService = inject(WatchtowerService);
   readonly watchtowerCriticalCount = this.watchtowerService.criticalCount;
   readonly featureFlagsService = inject(FeatureFlagsService);
+  readonly offlineQueue = inject(OfflineQueueService);
   private _kbHandler?: (e: KeyboardEvent) => void;
 
   constructor() {
@@ -54,6 +56,7 @@ export class App implements OnInit, OnDestroy {
   readonly syncing = this.vaultService.syncing;
   readonly isUnlocked = this.vaultService.isUnlocked;
   readonly currentUrl = signal('');
+  readonly showOfflineQueue = signal(false);
 
   readonly showShell = computed(() => {
     const url = this.currentUrl();
@@ -61,7 +64,8 @@ export class App implements OnInit, OnDestroy {
       this.isUnlocked() &&
       !url.startsWith('/unlock') &&
       !url.startsWith('/launcher') &&
-      !url.startsWith('/autotype')
+      !url.startsWith('/autotype') &&
+      !url.startsWith('/generate')
     );
   });
 
@@ -422,6 +426,9 @@ export class App implements OnInit, OnDestroy {
 
       // Load feature flags
       await this.featureFlagsService.load();
+
+      // Initialise offline queue (loads persisted queue + sets up listeners)
+      await this.offlineQueue.init();
     }
 
     this._kbHandler = (e: KeyboardEvent) => {
@@ -458,6 +465,7 @@ export class App implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     if (this._kbHandler) document.removeEventListener('keydown', this._kbHandler);
+    this.offlineQueue.destroy();
   }
 
   /** Upsert a <style id="dw-custom-css"> tag — called by both app startup and settings component */
