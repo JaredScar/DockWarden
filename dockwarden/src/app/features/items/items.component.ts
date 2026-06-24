@@ -9,6 +9,7 @@ import { ClipboardService } from '../../core/clipboard.service';
 import { FolderService } from '../../core/folder.service';
 import { WatchtowerService } from '../watchtower/watchtower.service';
 import { WatchtowerCategory, Severity } from '../watchtower/watchtower.models';
+import { MarkdownPipe } from '../../shared/pipes/markdown.pipe';
 import { VaultItem } from '../../shared/models';
 import Fuse from 'fuse.js';
 
@@ -39,7 +40,7 @@ export interface RiskLabel {
 @Component({
   selector: 'app-items',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, MarkdownPipe],
   templateUrl: './items.component.html',
   styleUrl: './items.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -60,6 +61,12 @@ export class ItemsComponent implements OnInit, OnDestroy {
   readonly showPassword = signal(false);
   readonly copiedField = signal<string | null>(null);
   readonly showTagPicker = signal(false);
+
+  // Markdown note display state
+  /** true = show raw markdown source instead of rendered output */
+  readonly showRawNote = signal(false);
+  /** true = show live preview panel below the textarea while editing */
+  readonly showEditPreview = signal(true);
 
   // Custom icons
   readonly customIcons = signal<Record<string, CustomIcon>>({});
@@ -266,6 +273,7 @@ export class ItemsComponent implements OnInit, OnDestroy {
     this.showPassword.set(false);
     this.editing.set(false);
     this.saveError.set('');
+    this.showRawNote.set(false);
   }
 
   // ── Edit panel ─────────────────────────────────────────────────────────────

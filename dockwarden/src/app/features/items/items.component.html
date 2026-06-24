@@ -348,16 +348,62 @@
           </div>
         }
 
-        <!-- NOTES -->
+        <!-- NOTES (Markdown-rendered) -->
         @if (item.notes || editing()) {
           <div class="field-group">
-            <div class="field-label">NOTES</div>
+            <div class="field-label notes-label">
+              NOTES
+              @if (!editing() && item.notes) {
+                <div class="notes-label-actions">
+                  <button class="md-toggle-btn"
+                          (click)="showRawNote.update(v => !v)"
+                          [title]="showRawNote() ? 'Show rendered preview' : 'Show raw markdown'">
+                    @if (showRawNote()) {
+                      <i class="fas fa-eye"></i> Preview
+                    } @else {
+                      <i class="fas fa-code"></i> Raw
+                    }
+                  </button>
+                </div>
+              }
+              @if (editing()) {
+                <div class="notes-label-actions">
+                  <button class="md-toggle-btn"
+                          (click)="showEditPreview.update(v => !v)"
+                          [title]="showEditPreview() ? 'Hide preview' : 'Show preview'">
+                    @if (showEditPreview()) {
+                      <i class="fas fa-eye-slash"></i> Hide preview
+                    } @else {
+                      <i class="fas fa-eye"></i> Show preview
+                    }
+                  </button>
+                  <span class="md-hint"><i class="fas fa-brands fa-markdown"></i> Markdown</span>
+                </div>
+              }
+            </div>
+
             @if (editing()) {
-              <textarea class="field-textarea" rows="3"
-                        [ngModel]="editNotes()" (ngModelChange)="editNotes.set($event)"
-                        placeholder="Optional notes..."></textarea>
+              <!-- Edit mode: textarea + optional live preview -->
+              <div class="md-editor" [class.md-editor-split]="showEditPreview() && !!editNotes()">
+                <textarea class="field-textarea md-textarea"
+                          [rows]="showEditPreview() && editNotes() ? 8 : 5"
+                          [ngModel]="editNotes()" (ngModelChange)="editNotes.set($event)"
+                          placeholder="Supports **Markdown** — # headings, - lists, `code`, > quotes, | tables…">
+                </textarea>
+                @if (showEditPreview() && editNotes()) {
+                  <div class="md-editor-preview">
+                    <div class="md-preview-label"><i class="fas fa-eye"></i> Preview</div>
+                    <div class="md-preview-body" [innerHTML]="editNotes() | markdown"></div>
+                  </div>
+                }
+              </div>
             } @else {
-              <div class="field-value notes-value">{{ item.notes }}</div>
+              <!-- View mode: rendered markdown or raw source -->
+              @if (showRawNote()) {
+                <pre class="notes-raw">{{ item.notes }}</pre>
+              } @else {
+                <div class="md-preview-body" [innerHTML]="item.notes | markdown"></div>
+              }
             }
           </div>
         }
