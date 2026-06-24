@@ -4,7 +4,7 @@
 
 ### A power-user companion app built on top of Bitwarden.
 
-**Tags · Multi-Tag Filtering · Auto-Type · Quick Generate · Offline Edit Queue · Smart Views · Expiry Policies · Quick Launcher · Multi-Account · Snapshot Diffing · Custom Icons · Clipboard Auto-Clear · TOTP Panel · Vault Item Templates · Visual Nested Folders · Watchtower Security Dashboard**
+**Tags · Multi-Tag Filtering · Auto-Type · Quick Generate · Offline Edit Queue · At-Risk Labels · Markdown Notes · Smart Views · Expiry Policies · Quick Launcher · Multi-Account · Snapshot Diffing · Custom Icons · Clipboard Auto-Clear · TOTP Panel · Vault Item Templates · Visual Nested Folders · Watchtower Security Dashboard**
 
 [![Electron](https://img.shields.io/badge/Electron-42-47848F?style=flat-square&logo=electron&logoColor=white)](https://electronjs.org)
 [![Angular](https://img.shields.io/badge/Angular-21-DD0031?style=flat-square&logo=angular&logoColor=white)](https://angular.dev)
@@ -47,6 +47,8 @@ Everything DockWarden does uses the **official Bitwarden CLI** under the hood. Y
 | **Watchtower security dashboard** | ✅ | ❌ | ✅ |
 | **Quick Generate (one-click create + save + auto-type)** | ✅ | ❌ | ✅ |
 | **Offline edit queue with conflict resolver** | ❌ | ❌ | ✅ |
+| **At-risk password reason labels (Weak / Reused / Breached pills)** | ✅ | ❌ | ✅ |
+| **Markdown rendering in secure notes** | ❌ | ❌ | ✅ |
 | **Custom local icons / favicons (no CDN)** | ❌ | ❌ | ✅ |
 | **Clipboard auto-clear with toast countdown** | ✅ | ⚠️ (extension only) | ✅ |
 | **TOTP panel — all codes at a glance** | ✅ | ❌ | ✅ |
@@ -133,6 +135,39 @@ Press `Ctrl+Alt+G` from **any application** (or click the ⚡ button in the side
 - **Context-aware site detection** — parses "Dashboard — Google Chrome" style window titles to extract a clean hostname
 
 Configure the default username and generator preferences any time from **Settings → Quick Generate**.
+
+---
+
+### 🏷️ At-Risk Password Reason Labels
+
+When Watchtower flags an item it now tells you **exactly why** — right on the item itself, without opening the Watchtower dashboard. Each risk is surfaced as a compact, color-coded pill badge alongside the item in the vault list, and as a full-detail "Security Alerts" section in the item detail panel.
+
+| Badge | Color | Meaning |
+|---|---|---|
+| **Breached** | Red | Password found in a known data breach (HIBP k-anonymity) |
+| **Weak** | Amber | Password scores 0–2 on zxcvbn |
+| **Reused** | Orange | Same password used across two or more items |
+| **HTTP** | Yellow | Login URL uses insecure HTTP |
+| **No 2FA** | Purple | Site likely supports TOTP but no 2FA is configured |
+| **Duplicate** | Grey | Item is a near-identical copy of another entry |
+
+- Pills appear **inline in the item list** — scannable at a glance without clicking into anything
+- Hovering a pill shows the **full Watchtower message** as a tooltip
+- Opening an item surfaces a **Security Alerts section** in the detail panel with the full label and explanation for each finding
+- Labels update **reactively** — as soon as a Watchtower scan completes or you dismiss a finding, all badges update instantly everywhere
+
+---
+
+### 📝 Markdown Rendering in Secure Notes
+
+Secure notes and item notes are now rendered as **live Markdown** in the detail panel — stored as plain text in Bitwarden exactly as before, just displayed beautifully in DockWarden.
+
+- **View mode**: rendered by default — headings, bold/italic, lists, blockquotes, fenced code, tables, and links all styled to match the DockWarden dark theme
+- **Raw / Preview toggle**: a small button in the Notes label row switches between the rendered output and the original markdown source
+- **Edit mode**: a monospace textarea (because writing markdown in monospace just feels right) with a **live preview panel** that updates character-by-character as you type; the preview can be shown side-by-side or collapsed to single-column with one click
+- **Security-first**: all rendered HTML passes through [DOMPurify](https://github.com/cure53/DOMPurify) with a strict allowlist before being injected — no XSS possible even if your notes contain malicious HTML fragments
+- External links in notes open in a new tab with `rel="noopener noreferrer"` enforced by the custom link renderer
+- Nothing changes in Bitwarden — the note is stored and synced as plain text; markdown is a DockWarden-only rendering layer
 
 ---
 
@@ -642,6 +677,8 @@ export class VaultService {
 | ✅ Watchtower Security Dashboard | HIBP k-Anonymity breach check, zxcvbn strength, reuse, insecure URIs, missing 2FA, duplicate detection, health score ring | **Shipped** |
 | ✅ Quick Generate | Global `Ctrl+Alt+G` floating generator; auto-detects active window site name; Save & Auto-Type / Copy / Save Only; default username; persistent length + charset settings | **Shipped** |
 | ✅ Offline Edit Queue | Auto-detects network failure on sync; safeStorage-encrypted queue; optimistic UI; amber status banner; per-item conflict resolver; queue drawer with discard; survives app restart | **Shipped** |
+| ✅ At-Risk Password Reason Labels | Inline pill badges on every vault item showing exactly why it's flagged (Breached / Weak / Reused / HTTP / No 2FA / Duplicate); full Security Alerts section in detail panel; reactive on scan updates | **Shipped** |
+| ✅ Markdown Rendering in Secure Notes | Live markdown preview (GFM, tables, code blocks, blockquotes) in detail panel; monospace edit textarea with side-by-side live preview; Raw toggle; DOMPurify sanitised; stored as plain text in Bitwarden | **Shipped** |
 | 🚧 Cloud backup adapters | S3, Cloudflare R2, Backblaze B2, WebDAV live | Planned |
 
 ---
