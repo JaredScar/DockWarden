@@ -1771,6 +1771,22 @@ function setupIpcHandlers() {
 
   ipcMain.handle('app:get-version', () => app.getVersion());
 
+  // ─── Usage tracking (frequency-of-use sort) ────────────────────────────────
+
+  const USAGE_STORE_KEY = 'usageCounts';
+
+  ipcMain.handle('usage:increment', (_, { itemId }) => {
+    if (!itemId || typeof itemId !== 'string') return 0;
+    const counts = store.get(USAGE_STORE_KEY, {});
+    counts[itemId] = (counts[itemId] || 0) + 1;
+    store.set(USAGE_STORE_KEY, counts);
+    return counts[itemId];
+  });
+
+  ipcMain.handle('usage:get-all', () => {
+    return store.get(USAGE_STORE_KEY, {});
+  });
+
   // ─── Settings helpers ──────────────────────────────────────────────────────
 
   ipcMain.handle('bw:get-config', async () => {

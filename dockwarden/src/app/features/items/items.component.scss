@@ -56,10 +56,46 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px 14px 6px;
+  padding: 10px 14px 4px;
 
   .list-title { font-size: 12px; font-weight: 600; color: var(--text-secondary); }
   .list-count { font-size: 11px; color: var(--text-muted); }
+}
+
+// ─── Sort Bar ─────────────────────────────────────────────────────────────────
+.sort-bar {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 14px 6px;
+}
+
+.sort-bar-icon {
+  font-size: 10px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.sort-select {
+  flex: 1;
+  appearance: none;
+  background: transparent;
+  border: none;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  outline: none;
+  padding: 0;
+
+  option {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+  }
+
+  &:hover { color: var(--text-secondary); }
+  &:focus { color: var(--text-primary); }
 }
 
 // ─── Multi-Tag Filter Bar ─────────────────────────────────────────────────────

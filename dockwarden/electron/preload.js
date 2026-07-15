@@ -111,6 +111,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.removeAllListeners('offline:conflicts-detected');
     },
   },
+  usage: {
+    increment: (itemId) => ipcRenderer.invoke('usage:increment', { itemId }),
+    getAll: () => ipcRenderer.invoke('usage:get-all'),
+  },
   app: {
     getStore: (key) => ipcRenderer.invoke('app:get-store', key),
     setStore: (key, value) => ipcRenderer.invoke('app:set-store', { key, value }),

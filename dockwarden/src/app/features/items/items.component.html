@@ -78,9 +78,26 @@
       <span class="list-count">{{ filteredItems().length }} items</span>
     </div>
 
+    <!-- Sort bar -->
+    <div class="sort-bar">
+      <i class="fas fa-arrow-up-wide-short sort-bar-icon"></i>
+      <select class="sort-select"
+              [ngModel]="sortBy()"
+              (ngModelChange)="sortBy.set($event)"
+              title="Sort order">
+        <option value="name-asc">Name A → Z</option>
+        <option value="name-desc">Name Z → A</option>
+        <option value="modified-desc">Last Modified</option>
+        <option value="modified-asc">Oldest Modified</option>
+        <option value="most-used">Most Used</option>
+      </select>
+    </div>
+
     <div class="items-list">
       @for (group of groupedItems(); track group[0]) {
-        <div class="group-letter">{{ group[0] }}</div>
+        @if (group[0]) {
+          <div class="group-letter">{{ group[0] }}</div>
+        }
         @for (item of group[1]; track item.id) {
           <div class="item-row" [class.selected]="selectedItem()?.id === item.id"
                (click)="selectItem(item)"

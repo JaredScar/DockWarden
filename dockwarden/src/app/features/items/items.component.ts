@@ -68,6 +68,11 @@ export class ItemsComponent implements OnInit, OnDestroy {
   /** true = show live preview panel below the textarea while editing */
   readonly showEditPreview = signal(true);
 
+  // ── Sort state ─────────────────────────────────────────────────────────────
+  readonly sortBy = signal<'name-asc' | 'name-desc' | 'modified-desc' | 'modified-asc' | 'most-used'>('name-asc');
+  /** Usage counts loaded from the Electron store: Record<itemId, count> */
+  readonly usageCounts = signal<Record<string, number>>({});
+
   // Custom icons
   readonly customIcons = signal<Record<string, CustomIcon>>({});
   readonly iconPickerOpen = signal(false);
@@ -130,6 +135,7 @@ export class ItemsComponent implements OnInit, OnDestroy {
     });
   }
 
+  /** Filtered list (no sort applied yet) — used for count and auto-select. */
   readonly filteredItems = computed(() => {
     const q = this.searchQuery();
     const params = this.activeParams();
@@ -158,6 +164,29 @@ export class ItemsComponent implements OnInit, OnDestroy {
     if (!q) return base;
     const fuse = new Fuse(base, { keys: ['name', 'username', 'website'], threshold: 0.4 });
     return fuse.search(q).map(r => r.item);
+  });
+
+  /** Filtered list with the user-chosen sort applied. */
+  readonly sortedFilteredItems = computed(() => {
+    const items = [...this.filteredItems()];
+    const sort = this.sortBy();
+    const counts = this.usageCounts();
+
+    switch (sort) {
+      case 'name-desc':
+        return items.sort((a, b) => b.name.localeCompare(a.name));
+      case 'modified-desc':
+        return items.sort((a, b) =>
+          new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime());
+      case 'modified-asc':
+        return items.sort((a, b) =>
+          new Date(a.lastModified).getTime() - new Date(b.lastModified).getTime());
+      case 'most-used':
+        return items.sort((a, b) => (counts[b.id] ?? 0) - (counts[a.id] ?? 0));
+      case 'name-asc':
+      default:
+        return items.sort((a, b) => a.name.localeCompare(b.name));
+    }
   });
 
   readonly listTitle = computed(() => {
@@ -190,14 +219,22 @@ export class ItemsComponent implements OnInit, OnDestroy {
   });
 
   readonly groupedItems = computed(() => {
-    const items = this.filteredItems();
-    const groups = new Map<string, VaultItem[]>();
-    items.forEach(item => {
-      const letter = item.name[0]?.toUpperCase() ?? '#';
-      if (!groups.has(letter)) groups.set(letter, []);
-      groups.get(letter)!.push(item);
-    });
-    return Array.from(groups.entries()).sort(([a], [b]) => a.localeCompare(b));
+    const items = this.sortedFilteredItems();
+    const sort = this.sortBy();
+
+    if (sort === 'name-asc' || sort === 'name-desc') {
+      // Alphabetical grouping — items are already name-sorted, so groups maintain order
+      const groups = new Map<string, VaultItem[]>();
+      items.forEach(item => {
+        const letter = item.name[0]?.toUpperCase() ?? '#';
+        if (!groups.has(letter)) groups.set(letter, []);
+        groups.get(letter)!.push(item);
+      });
+      return Array.from(groups.entries());
+    }
+
+    // For all other sorts: single flat list with no letter header
+    return [['', items]] as [string, VaultItem[]][];
   });
 
   // ── Multi-tag navigation ───────────────────────────────────────────────────
@@ -261,6 +298,10 @@ export class ItemsComponent implements OnInit, OnDestroy {
     // Ctrl+E global event from the app shell
     this._editHandler = () => { if (this.selectedItem()) this.startEdit(); };
     document.addEventListener('dw:start-edit', this._editHandler as EventListener);
+
+    // Load usage counts for frequency-of-use sort
+    const counts = await window.electronAPI!.usage.getAll();
+    this.usageCounts.set(counts);
   }
 
   ngOnDestroy(): void {
@@ -363,6 +404,13 @@ export class ItemsComponent implements OnInit, OnDestroy {
     await this.clipboardService.copy(text, field);
     this.copiedField.set(field);
     setTimeout(() => this.copiedField.set(null), 2000);
+
+    // Track usage for the "Most Used" sort — only meaningful copy actions count
+    const item = this.selectedItem();
+    if (item && (field === 'password' || field === 'username')) {
+      const newCount = await window.electronAPI!.usage.increment(item.id);
+      this.usageCounts.update(m => ({ ...m, [item.id]: newCount }));
+    }
   }
 
   // ── Custom icon management ─────────────────────────────────────────────────
