@@ -73,6 +73,48 @@ export class ItemsComponent implements OnInit, OnDestroy {
   /** Usage counts loaded from the Electron store: Record<itemId, count> */
   readonly usageCounts = signal<Record<string, number>>({});
 
+  // ── Primary account per site ───────────────────────────────────────────────
+  /** IDs of items the user has pinned as "primary" for their site. */
+  readonly primaryItemIds = signal<Set<string>>(new Set());
+
+  /** Extract a normalised hostname from an item URL (null if absent/invalid). */
+  private extractDomain(url: string | null | undefined): string | null {
+    if (!url) return null;
+    try {
+      const href = /^https?:\/\//i.test(url) ? url : `https://${url}`;
+      return new URL(href).hostname.toLowerCase().replace(/^www\./, '');
+    } catch {
+      return null;
+    }
+  }
+
+  isPrimary(item: VaultItem): boolean {
+    return this.primaryItemIds().has(item.id);
+  }
+
+  async togglePrimary(item: VaultItem): Promise<void> {
+    const ids = new Set(this.primaryItemIds());
+
+    if (ids.has(item.id)) {
+      ids.delete(item.id);
+    } else {
+      // Demote any existing primary that shares the same domain
+      const domain = this.extractDomain(item.website);
+      if (domain) {
+        for (const existingId of ids) {
+          const existingItem = this.items().find(i => i.id === existingId);
+          if (existingItem && this.extractDomain(existingItem.website) === domain) {
+            ids.delete(existingId);
+          }
+        }
+      }
+      ids.add(item.id);
+    }
+
+    this.primaryItemIds.set(ids);
+    await window.electronAPI!.primary.setAll([...ids]);
+  }
+
   // Custom icons
   readonly customIcons = signal<Record<string, CustomIcon>>({});
   readonly iconPickerOpen = signal(false);
@@ -166,27 +208,36 @@ export class ItemsComponent implements OnInit, OnDestroy {
     return fuse.search(q).map(r => r.item);
   });
 
-  /** Filtered list with the user-chosen sort applied. */
+  /** Filtered list with the user-chosen sort applied.
+   *  Primary items always float to the top, then the rest follow the base sort. */
   readonly sortedFilteredItems = computed(() => {
     const items = [...this.filteredItems()];
     const sort = this.sortBy();
     const counts = this.usageCounts();
+    const primaries = this.primaryItemIds();
 
+    // ── Base sort ──────────────────────────────────────────────────────────
     switch (sort) {
       case 'name-desc':
-        return items.sort((a, b) => b.name.localeCompare(a.name));
+        items.sort((a, b) => b.name.localeCompare(a.name)); break;
       case 'modified-desc':
-        return items.sort((a, b) =>
-          new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime());
+        items.sort((a, b) =>
+          new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime()); break;
       case 'modified-asc':
-        return items.sort((a, b) =>
-          new Date(a.lastModified).getTime() - new Date(b.lastModified).getTime());
+        items.sort((a, b) =>
+          new Date(a.lastModified).getTime() - new Date(b.lastModified).getTime()); break;
       case 'most-used':
-        return items.sort((a, b) => (counts[b.id] ?? 0) - (counts[a.id] ?? 0));
-      case 'name-asc':
+        items.sort((a, b) => (counts[b.id] ?? 0) - (counts[a.id] ?? 0)); break;
       default:
-        return items.sort((a, b) => a.name.localeCompare(b.name));
+        items.sort((a, b) => a.name.localeCompare(b.name)); break;
     }
+
+    // ── Float primaries to the top (stable — preserves relative base-sort order) ──
+    if (primaries.size === 0) return items;
+    return [
+      ...items.filter(i => primaries.has(i.id)),
+      ...items.filter(i => !primaries.has(i.id)),
+    ];
   });
 
   readonly listTitle = computed(() => {
@@ -299,9 +350,13 @@ export class ItemsComponent implements OnInit, OnDestroy {
     this._editHandler = () => { if (this.selectedItem()) this.startEdit(); };
     document.addEventListener('dw:start-edit', this._editHandler as EventListener);
 
-    // Load usage counts for frequency-of-use sort
-    const counts = await window.electronAPI!.usage.getAll();
+    // Load usage counts (frequency-of-use sort) and primary item IDs in parallel
+    const [counts, primaryIds] = await Promise.all([
+      window.electronAPI!.usage.getAll(),
+      window.electronAPI!.primary.getAll(),
+    ]);
     this.usageCounts.set(counts);
+    this.primaryItemIds.set(new Set(primaryIds));
   }
 
   ngOnDestroy(): void {

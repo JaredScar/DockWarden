@@ -912,6 +912,27 @@
   &:hover { background: var(--bg-card-hover); color: var(--text-primary); }
 }
 
+// ─── Primary Account ──────────────────────────────────────────────────────────
+
+// Subtle left-border accent on primary rows in the list
+.item-row-primary {
+  border-left: 2px solid #f59e0b;
+  padding-left: calc(12px - 2px); // compensate for the border so text doesn't shift
+}
+
+// Inline crown icon inside the item name
+.primary-crown-inline {
+  font-size: 9px;
+  color: #f59e0b;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+
+// Crown button in detail-actions — gold when active
+.btn-primary-active {
+  color: #f59e0b !important;
+}
+
 // ─── Markdown Notes ───────────────────────────────────────────────────────────
 
 // Field-label row that hosts the toggle + hint on the right

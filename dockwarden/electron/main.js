@@ -1771,6 +1771,16 @@ function setupIpcHandlers() {
 
   ipcMain.handle('app:get-version', () => app.getVersion());
 
+  // ─── Primary account per site ─────────────────────────────────────────────
+
+  ipcMain.handle('primary:get-all', () => store.get('primaryItems', []));
+
+  ipcMain.handle('primary:set-all', (_, { items }) => {
+    if (!Array.isArray(items)) return false;
+    store.set('primaryItems', items.filter(id => typeof id === 'string'));
+    return true;
+  });
+
   // ─── Usage tracking (frequency-of-use sort) ────────────────────────────────
 
   const USAGE_STORE_KEY = 'usageCounts';

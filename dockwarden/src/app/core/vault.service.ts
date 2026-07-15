@@ -207,6 +207,10 @@ declare global {
         onConflictsDetected: (cb: (data: { conflicts: ConflictItem[] }) => void) => void;
         removeListeners: () => void;
       };
+      primary: {
+        getAll: () => Promise<string[]>;
+        setAll: (items: string[]) => Promise<boolean>;
+      };
       usage: {
         increment: (itemId: string) => Promise<number>;
         getAll: () => Promise<Record<string, number>>;

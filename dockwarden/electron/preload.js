@@ -111,6 +111,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.removeAllListeners('offline:conflicts-detected');
     },
   },
+  primary: {
+    getAll: () => ipcRenderer.invoke('primary:get-all'),
+    setAll: (items) => ipcRenderer.invoke('primary:set-all', { items }),
+  },
   usage: {
     increment: (itemId) => ipcRenderer.invoke('usage:increment', { itemId }),
     getAll: () => ipcRenderer.invoke('usage:get-all'),

@@ -100,6 +100,7 @@
         }
         @for (item of group[1]; track item.id) {
           <div class="item-row" [class.selected]="selectedItem()?.id === item.id"
+               [class.item-row-primary]="isPrimary(item)"
                (click)="selectItem(item)"
                draggable="true"
                (dragstart)="onItemDragStart($event, item.id)">
@@ -116,6 +117,7 @@
               <div class="item-name">
                 {{ item.name }}
                 @if (item.favorite) { <i class="fas fa-star fav-star"></i> }
+                @if (isPrimary(item)) { <i class="fas fa-crown primary-crown-inline" title="Primary account"></i> }
               </div>
               <div class="item-username">
                 @if (item.username) { {{ item.username }} }
@@ -198,6 +200,12 @@
             <button class="btn-icon" title="Favorited"><i class="fas fa-star"></i></button>
           }
           @if (!editing()) {
+            <button class="btn-icon"
+                    [class.btn-primary-active]="isPrimary(item)"
+                    [title]="isPrimary(item) ? 'Primary account — click to unpin' : 'Set as primary account for this site'"
+                    (click)="togglePrimary(item)">
+              <i class="fas fa-crown"></i>
+            </button>
             <button class="btn-icon" title="Copy URL" (click)="item.website && copyToClipboard(item.website, 'url')">
               <i class="fas fa-link"></i>
             </button>
