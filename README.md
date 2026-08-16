@@ -4,7 +4,7 @@
 
 ### A power-user companion app built on top of Bitwarden.
 
-**Tags · Multi-Tag Filtering · Auto-Type · Quick Generate · Offline Edit Queue · At-Risk Labels · Markdown Notes · Smart Views · Expiry Policies · Quick Launcher · Multi-Account · Snapshot Diffing · Custom Icons · Clipboard Auto-Clear · TOTP Panel · Vault Item Templates · Visual Nested Folders · Watchtower Security Dashboard**
+**Tags · Multi-Tag Filtering · Auto-Type · Quick Generate · Offline Edit Queue · At-Risk Labels · Markdown Notes · Smart Views · Expiry Policies · Quick Launcher · Fast Multi-Account Switching · Snapshot Diffing · Custom Icons · Clipboard Auto-Clear · TOTP Panel · Vault Item Templates · Visual Nested Folders · Watchtower Security Dashboard**
 
 [![Electron](https://img.shields.io/badge/Electron-42-47848F?style=flat-square&logo=electron&logoColor=white)](https://electronjs.org)
 [![Angular](https://img.shields.io/badge/Angular-21-DD0031?style=flat-square&logo=angular&logoColor=white)](https://angular.dev)
@@ -40,7 +40,7 @@ Everything DockWarden does uses the **official Bitwarden CLI** under the hood. Y
 | Smart filters / saved searches | ✅ | ❌ | ✅ |
 | Password expiry alerts | ✅ | ❌ | ✅ |
 | **Policy-based expiry (e.g. "90-day rotation")** | ✅ | ❌ | ✅ |
-| **Multi-account switching with color coding** | ✅ | ❌ | ✅ |
+| **Multi-account switching (instant, no re-auth)** | ✅ | ❌ | ✅ |
 | **Vault snapshot diffing (audit trail)** | ❌ | ❌ | ✅ |
 | **Customizable vault item templates** | ❌ | ❌ | ✅ |
 | **Visual nested folder manager** | ✅ | ❌ | ✅ |
@@ -221,16 +221,33 @@ The community specifically asked for **policy-based expiry** — e.g., "flag any
 
 ---
 
-### 👤 Multi-Account Switching
+### 👤 Fast Multi-Account Switching
 
-Many users have both a personal and a work Bitwarden account. DockWarden makes switching between them frictionless, with **visual color coding** so you always know which vault you're working in.
+Juggling personal, work, and self-hosted Bitwarden accounts is painless. DockWarden gives each account **complete session isolation** and can restore a previously unlocked vault **instantly — no master password re-entry required**.
 
-- Accounts are automatically saved as profiles on first login
+#### How it works
+
+Every account gets its own isolated `bw` data directory (`BITWARDENCLI_APPDATA_DIR`). This means logging in, configuring a custom server, or locking one account never touches any other. Session keys are kept in memory and re-verified on switch — if the key is still valid, DockWarden switches immediately.
+
+| Switch scenario | What happens |
+|---|---|
+| Target vault was already unlocked this session | **Instant** — restores session, loads items, navigates to Home |
+| Target vault is locked (identity known) | Unlock screen — **master password only**, no email/server re-entry |
+| Target vault has never been added | Login screen — email + password (one-time per account) |
+
+#### Features
+
+- **Zero session loss** — adding a second account never terminates the currently active session; both stay live simultaneously
 - **Color-coded sidebar header** — each account has a distinct accent color shown in the brand logo and sidebar
 - **Account switcher dropdown** — click the DockWarden logo in the sidebar to see all saved profiles
-- Switching accounts locks the current vault and pre-fills the email on the unlock screen — just enter your password
-- Manage and remove profiles from **Settings → Account Profiles**
-- Works with personal accounts, business accounts, and self-hosted Bitwarden servers
+- **Live session badges** — each profile card shows a green *Unlocked* or grey *Locked* pill and a status dot so you always know which vaults are hot
+- **⚡ bolt icon** on the Switch button when instant switch is available (no password needed)
+- **2FA support** — adding an account that requires two-factor authentication flows through the standard TOTP/email code prompt
+- **Per-account server URLs** — personal on `bitwarden.com`, work on a self-hosted instance, each completely isolated
+- **Transparent upgrade path** — on first launch after installing, DockWarden migrates existing `bw` session data to the new per-account directories so you don't have to re-login
+- Manage and remove profiles from the **Accounts** page in the sidebar
+
+> This is a genuine differentiator: the `bw` CLI is a single-session binary. Solving true multi-session support required isolating each account's data directory and caching session keys across switches — something no other Bitwarden companion app currently does.
 
 ---
 
@@ -570,7 +587,8 @@ npm run electron     # Launch Electron against dist/
 
 DockWarden is designed with a minimal attack surface:
 
-- **No credentials stored by DockWarden** — authentication is handled entirely by the official `bw` CLI; the session key lives only in memory for the lifetime of the app process
+- **No credentials stored by DockWarden** — authentication is handled entirely by the official `bw` CLI; session keys live only in memory for the lifetime of the app process and are never written to disk
+- **Per-account data isolation** — each saved account gets its own `bw` data directory (`{userData}/bw-data/{accountId}/`); one account's login state, server config, and cached vault can never bleed into another
 - **contextBridge isolation** — the Angular renderer has no access to Node.js or IPC directly; it communicates only through a typed, allowlisted surface defined in `preload.js`
 - **Metadata in your vault** — tags and expiry dates are written to Bitwarden custom fields (not a local database), so they are encrypted at rest by Bitwarden
 - **Open source** — full source available for review
@@ -660,7 +678,7 @@ export class VaultService {
 | ✅ Smart Views | Filter builder, AND/OR, sidebar pinning, dynamic counts | **Shipped** |
 | ✅ Expiry System | `_dw_expires` field, expiry dashboard, OS notifications | **Shipped** |
 | ✅ Expiry Policies | Policy-based "90-day rotation" violations dashboard, per-policy items | **Shipped** |
-| ✅ Multi-Account Switching | Color-coded profiles, sidebar switcher, Settings manager | **Shipped** |
+| ✅ Fast Multi-Account Switching | Per-account isolated `bw` data dirs; in-memory session cache; instant switch when session still live; add accounts without ending current session; live Unlocked/Locked badges | **Shipped** |
 | ✅ Encrypted Backup | `bw export` cron, local/S3/Backblaze, retention, history | **Shipped** |
 | ✅ Custom CSS | Live-preview CSS editor, variable reference, presets | **Shipped** |
 | ✅ Click-to-Copy Fields | Click any field box to copy; green flash confirmation | **Shipped** |
