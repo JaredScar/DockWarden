@@ -52,9 +52,15 @@ class Store {
 
 const store = new Store();
 
-// ─── In-memory session (never persisted to disk) ──────────────────────────────
+// ─── In-memory session state (never persisted to disk) ────────────────────────
 let bwSession = null;
-let pending2FA = null;      // { email, serverUrl, env }
+
+// Per-account session cache: accountId → sessionKey.
+// Allows instant "fast switch" to an account that was already unlocked earlier in
+// this app session without re-entering the master password.
+const bwSessions = new Map();
+
+let pending2FA = null;      // { email, serverUrl, env, isNewAccount?, newAccountId? }
 let pending2FAProcess = null; // Live spawn process holding the auth session open
 
 // ─── Offline Edit Queue ───────────────────────────────────────────────────────
@@ -397,20 +403,76 @@ function getBwPath() {
   return 'bw';
 }
 
+// ─── Per-account isolated data directories ────────────────────────────────────
+// The bw CLI stores all session/config state in one data directory.  By giving
+// each DockWarden account its own directory we get true multi-session support:
+// switching accounts never invalidates another account's login state.
+//
+// Directory layout: {app.userData}/bw-data/{accountId}/
+//
+// BITWARDENCLI_APPDATA_DIR is the official bw environment variable for this.
+
+/**
+ * Returns (and creates) the per-account bw data directory.
+ * On first call for a given accountId the directory is created; if it is newly
+ * created we attempt a one-time copy of the platform-default bw data directory
+ * so existing logins survive the upgrade without a full re-login.
+ */
+function getAccountDataDir(accountId) {
+  if (!accountId) return null;
+  const dir = path.join(app.getPath('userData'), 'bw-data', accountId);
+  const isNew = !fs.existsSync(dir);
+  try { fs.mkdirSync(dir, { recursive: true }); } catch {}
+  if (isNew) {
+    // One-time migration: copy files from the global bw data dir so the user
+    // does not have to re-login after upgrading to this version.
+    try {
+      const globalDir = process.platform === 'win32'
+        ? path.join(process.env.APPDATA || os.homedir(), 'Bitwarden CLI')
+        : path.join(os.homedir(), '.config', 'Bitwarden CLI');
+      const entries = fs.readdirSync(globalDir);
+      for (const entry of entries) {
+        const src = path.join(globalDir, entry);
+        const dst = path.join(dir, entry);
+        if (fs.statSync(src).isFile() && !fs.existsSync(dst)) {
+          fs.copyFileSync(src, dst);
+        }
+      }
+      console.log('[DockWarden] Migrated bw data for account:', accountId);
+    } catch { /* global data dir may not exist for new installs */ }
+  }
+  return dir;
+}
+
+/** Returns the data directory for the currently active account (or null). */
+function getActiveAccountDataDir() {
+  const id = store.get('activeAccountId', null);
+  return id ? getAccountDataDir(id) : null;
+}
+
 // ─── Shared spawn configuration ───────────────────────────────────────────────
 // Returns the bw binary path, shell flag, and fully-augmented environment for
 // every spawn site.  Centralised so PATH augmentation, shell-mode detection,
-// and ENOENT messaging are consistent across runBw and the inline login spawns.
+// ENOENT messaging, and data-directory isolation are consistent everywhere.
 //
 // Shell-mode rules:
 //  • macOS / Linux  – shell: false (most secure; bw is a real ELF/Mach-O binary)
 //  • Windows        – shell: true  (required because npm installs bw as a .cmd
 //                     wrapper that cmd.exe must interpret).  Args are still passed
 //                     as an array so no injection is possible through them.
-function getBwSpawnConfig(extraEnv = {}) {
+//
+// dataDir parameter:
+//  • undefined (default) → use getActiveAccountDataDir() (the active account's dir)
+//  • null                 → no override (use bw's built-in default; avoids breaking
+//                           CLI-level operations like `bw config server` that must
+//                           not inherit a stale account dir in edge-cases)
+//  • string               → explicit path (used by runBwForAccount and add-login)
+function getBwSpawnConfig(extraEnv = {}, dataDir) {
   const bwPath = getBwPath();
   const useShell = process.platform === 'win32' || bwPath.toLowerCase().endsWith('.cmd');
-  const env = { ...process.env, ...extraEnv, PATH: getAugmentedPath() };
+  const dir = dataDir !== undefined ? dataDir : getActiveAccountDataDir();
+  const dirEnv = dir ? { BITWARDENCLI_APPDATA_DIR: dir } : {};
+  const env = { ...process.env, ...extraEnv, ...dirEnv, PATH: getAugmentedPath() };
   return { bwPath, useShell, env };
 }
 
@@ -454,6 +516,28 @@ async function runBw(args, extraEnv = {}) {
 async function runBwJson(args, env = {}) {
   const output = await runBw(args, env);
   return JSON.parse(output);
+}
+
+/**
+ * Run a bw command scoped to a specific account's data directory without
+ * changing the currently active account.  Used for cross-account status checks
+ * and the add-new-login flow.
+ */
+async function runBwForAccount(accountId, args, extraEnv = {}) {
+  const dataDir = getAccountDataDir(accountId);
+  const { bwPath, useShell, env } = getBwSpawnConfig(extraEnv, dataDir);
+  return new Promise((resolve, reject) => {
+    const proc = spawn(bwPath, args, { env, shell: useShell, windowsHide: true });
+    const chunks = [];
+    let stderr = '';
+    proc.stdout.on('data', d => chunks.push(d));
+    proc.stderr.on('data', d => { stderr += d.toString(); });
+    proc.on('error', err => { reject(err.code === 'ENOENT' ? makeBwEnoentError() : err); });
+    proc.on('close', code => {
+      if (code === 0) resolve(Buffer.concat(chunks).toString('utf8').trim());
+      else reject(new Error(stderr.trim() || `bw exited with code ${code}`));
+    });
+  });
 }
 
 // ─── External URL safety ──────────────────────────────────────────────────────
@@ -1112,6 +1196,9 @@ function setupIpcHandlers() {
           pending2FA = null;
           // Auto-save account profile on first login
           saveAccountProfile(email, serverUrl || 'https://bitwarden.com');
+          // Cache session for fast account switching
+          const activeId = store.get('activeAccountId', null);
+          if (activeId) bwSessions.set(activeId, bwSession);
           settle({ success: true });
         } else {
           const msg = stderr + stdout;
@@ -1139,7 +1226,29 @@ function setupIpcHandlers() {
     if (!pending2FA) {
       return { success: false, error: 'Session expired. Please sign in again.' };
     }
-    const { email, serverUrl, env } = pending2FA;
+    const { email, serverUrl, env, isNewAccount, newAccountId } = pending2FA;
+
+    // Shared helper: finalise a successful 2FA login.
+    // For a regular login it updates the active account's session.
+    // For an "add new account" login it calls _finaliseAddLogin instead.
+    function onTwoFaSuccess(sessionKey, resolve) {
+      if (isNewAccount && newAccountId) {
+        const profiles = store.get('accountProfiles', []);
+        const existing = profiles.find(p => p.id === newAccountId);
+        _finaliseAddLogin(newAccountId, email, serverUrl || 'https://bitwarden.com', sessionKey, profiles, existing);
+        pending2FA = null;
+        resolve({ success: true });
+      } else {
+        bwSession = sessionKey;
+        store.set('bwEmail', email);
+        if (serverUrl) store.set('bwServerUrl', serverUrl);
+        saveAccountProfile(email, serverUrl || 'https://bitwarden.com');
+        const activeId = store.get('activeAccountId', null);
+        if (activeId) bwSessions.set(activeId, bwSession);
+        pending2FA = null;
+        resolve({ success: true });
+      }
+    }
 
     // ── Path A: live process is still waiting on stdin (preferred) ────────────
     if (pending2FAProcess && !pending2FAProcess.killed) {
@@ -1155,21 +1264,14 @@ function setupIpcHandlers() {
           if (exitCode === 0) {
             const session = newStdout.trim();
             if (session) {
-              bwSession = session;
-              store.set('bwEmail', email);
-              if (serverUrl) store.set('bwServerUrl', serverUrl);
-              pending2FA = null;
-              resolve({ success: true });
+              onTwoFaSuccess(session, resolve);
             } else {
               // Session key wasn't captured in this listener — fall back to unlock
-              runBw(['unlock', '--passwordenv', 'BW_PASSWORD', '--raw'], env)
-                .then(out => {
-                  bwSession = out.trim();
-                  store.set('bwEmail', email);
-                  if (serverUrl) store.set('bwServerUrl', serverUrl);
-                  pending2FA = null;
-                  resolve({ success: true });
-                })
+              const unlockRunner = isNewAccount && newAccountId
+                ? runBwForAccount(newAccountId, ['unlock', '--passwordenv', 'BW_PASSWORD', '--raw'], env)
+                : runBw(['unlock', '--passwordenv', 'BW_PASSWORD', '--raw'], env);
+              unlockRunner
+                .then(out => onTwoFaSuccess(out.trim(), resolve))
                 .catch(unlockErr => {
                   resolve({ success: false, error: extractBwError(String(unlockErr.message)) });
                 });
@@ -1191,7 +1293,11 @@ function setupIpcHandlers() {
 
     // ── Path B: process already exited — spawn fresh and pipe code quickly ────
     return new Promise((resolve) => {
-      const { bwPath, useShell, env: spawnEnv } = getBwSpawnConfig(env);
+      // Use the new account's data dir if applicable, otherwise the active one
+      const dataDir = isNewAccount && newAccountId
+        ? getAccountDataDir(newAccountId)
+        : undefined; // getBwSpawnConfig will use the active account dir
+      const { bwPath, useShell, env: spawnEnv } = getBwSpawnConfig(env, dataDir);
       const proc = spawn(bwPath,
         ['login', email, '--passwordenv', 'BW_PASSWORD', '--method', String(method), '--raw'],
         { env: spawnEnv, shell: useShell, windowsHide: true,
@@ -1220,11 +1326,7 @@ function setupIpcHandlers() {
       proc.on('close', exitCode => {
         clearTimeout(fallback);
         if (exitCode === 0) {
-          bwSession = stdout.trim();
-          store.set('bwEmail', email);
-          if (serverUrl) store.set('bwServerUrl', serverUrl);
-          pending2FA = null;
-          resolve({ success: true });
+          onTwoFaSuccess(stdout.trim(), resolve);
         } else {
           resolve({ success: false, error: extractBwError(stderr + stdout) });
         }
@@ -1243,6 +1345,9 @@ function setupIpcHandlers() {
       const env = { ...process.env, BW_PASSWORD: password };
       const output = await runBw(['unlock', '--passwordenv', 'BW_PASSWORD', '--raw'], env);
       bwSession = output.trim();
+      // Cache session for fast account switching
+      const activeId = store.get('activeAccountId', null);
+      if (activeId) bwSessions.set(activeId, bwSession);
       // Ensure the current email/server is persisted as a profile so the switcher shows it
       const email = store.get('bwEmail', '');
       const serverUrl = store.get('bwServerUrl', 'https://bitwarden.com');
@@ -1254,24 +1359,30 @@ function setupIpcHandlers() {
   });
 
   ipcMain.handle('vault:lock', async () => {
+    const activeId = store.get('activeAccountId', null);
     try {
       await runBw(['lock']);
       bwSession = null;
+      if (activeId) bwSessions.delete(activeId);
       return { success: true };
     } catch (err) {
       bwSession = null;
+      if (activeId) bwSessions.delete(activeId);
       return { success: false, error: err.message };
     }
   });
 
   ipcMain.handle('vault:logout', async () => {
+    const activeId = store.get('activeAccountId', null);
     try {
       await runBw(['logout']);
       bwSession = null;
+      if (activeId) bwSessions.delete(activeId);
       store.set('bwEmail', null);
       return { success: true };
     } catch (err) {
       bwSession = null;
+      if (activeId) bwSessions.delete(activeId);
       return { success: false, error: err.message };
     }
   });
@@ -2021,6 +2132,8 @@ function setupIpcHandlers() {
     const profiles = store.get('accountProfiles', []);
     store.set('accountProfiles', profiles.filter(p => p.id !== id));
     if (store.get('activeAccountId') === id) store.set('activeAccountId', null);
+    // Evict any cached session for the removed account
+    bwSessions.delete(id);
     return true;
   });
 
@@ -2033,17 +2146,163 @@ function setupIpcHandlers() {
     return true;
   });
 
+  // ─── account:switch ─────────────────────────────────────────────────────────
+  // Fast multi-account switching.  If the target account has a cached session key
+  // that is still valid we restore it immediately (no master password prompt).
+  // Otherwise we navigate to /unlock so the user can supply their master password.
+  // bw data dirs are isolated per account, so unlocking never touches another
+  // account's vault state.
   ipcMain.handle('account:switch', async (_, { id }) => {
     const profiles = store.get('accountProfiles', []);
     const profile = profiles.find(p => p.id === id);
     if (!profile) return { success: false, error: 'Profile not found' };
-    // Lock vault, set new email/server, redirect to unlock so the stored config is picked up
-    bwSession = null;
-    store.set('bwEmail', profile.email);
-    if (profile.serverUrl) store.set('bwServerUrl', profile.serverUrl);
+
+    // Persist the current account's session so it can be restored on switch-back
+    const currentId = store.get('activeAccountId', null);
+    if (currentId && bwSession) bwSessions.set(currentId, bwSession);
+
+    // Activate the target account (data dir switches at this point)
     store.set('activeAccountId', id);
+    store.set('bwEmail', profile.email);
+    store.set('bwServerUrl', profile.serverUrl || 'https://bitwarden.com');
+    bwSession = null;
+    itemsCache = [];
+
+    // ── Fast path: verify cached session ──────────────────────────────────────
+    const cachedSession = bwSessions.get(id);
+    if (cachedSession) {
+      try {
+        const statusOut = await runBw(['status', '--session', cachedSession]);
+        const statusData = JSON.parse(statusOut);
+        if (statusData.status === 'unlocked') {
+          bwSession = cachedSession;
+          // Reload items for the new account in the background
+          runBw(['list', 'items', '--session', bwSession])
+            .then(out => { try { itemsCache = JSON.parse(out).map(mapBwItem); } catch {} })
+            .catch(() => {});
+          return { success: true, alreadyUnlocked: true };
+        }
+      } catch { /* session expired */ }
+      bwSessions.delete(id);
+    }
+
+    // ── Slow path: determine whether account needs login or just unlock ────────
+    // bw status with no session key tells us if it's locked (knows identity) or
+    // unauthenticated (needs full email + password login).
+    let needsLogin = false;
+    try {
+      const statusOut = await runBw(['status']);
+      const statusData = JSON.parse(statusOut);
+      needsLogin = (statusData.status === 'unauthenticated');
+    } catch { /* treat as locked */ }
+
     mainWindow?.webContents.send('navigate', '/unlock');
-    return { success: true };
+    return { success: true, alreadyUnlocked: false, needsLogin };
+  });
+
+  // ─── account:get-session-states ─────────────────────────────────────────────
+  // Returns the in-memory session state for every saved profile so the UI can
+  // show live status badges without querying bw for each account.
+  ipcMain.handle('account:get-session-states', async () => {
+    const profiles = store.get('accountProfiles', []);
+    const activeId = store.get('activeAccountId', null);
+    const states = {};
+    for (const p of profiles) {
+      if (p.id === activeId) {
+        states[p.id] = bwSession ? 'unlocked' : 'locked';
+      } else {
+        states[p.id] = bwSessions.has(p.id) ? 'unlocked' : 'locked';
+      }
+    }
+    return states;
+  });
+
+  // ─── account:add-login ──────────────────────────────────────────────────────
+  // Logs into a second (or any additional) Bitwarden account without terminating
+  // the current session.  Uses an isolated bw data directory for the new account
+  // so the active vault is never disturbed.
+  ipcMain.handle('account:add-login', async (_, { email, password, serverUrl }) => {
+    const serverErr = validateServerUrl(serverUrl);
+    if (serverErr) return { success: false, error: serverErr };
+
+    const srv = serverUrl || 'https://bitwarden.com';
+    const profiles = store.get('accountProfiles', []);
+    const existing = profiles.find(p => p.email === email && p.serverUrl === srv);
+    const newAccountId = existing ? existing.id : `acct-${Date.now()}`;
+    const dataDir = getAccountDataDir(newAccountId);
+    const env = { BW_PASSWORD: password };
+
+    // Configure server in the new account's isolated data dir (non-fatal if it fails)
+    if (serverUrl && serverUrl !== 'https://bitwarden.com') {
+      try { await runBwForAccount(newAccountId, ['config', 'server', serverUrl], env); } catch {}
+    }
+
+    return new Promise((resolve) => {
+      const { bwPath, useShell, env: spawnEnv } = getBwSpawnConfig(env, dataDir);
+      const proc = spawn(bwPath,
+        ['login', email, '--passwordenv', 'BW_PASSWORD', '--raw'],
+        { env: spawnEnv, shell: useShell, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
+
+      let stdout = '';
+      let stderr = '';
+      let settled = false;
+
+      function settle(result) {
+        if (!settled) { settled = true; resolve(result); }
+      }
+
+      function onAddSuccess(sessionKey) {
+        _finaliseAddLogin(newAccountId, email, srv, sessionKey, profiles, existing);
+        settle({ success: true });
+      }
+
+      proc.stdout.on('data', d => { stdout += d.toString(); });
+      proc.stderr.on('data', d => {
+        stderr += d.toString();
+        if (!settled && isTwoFactorRequired(stderr)) {
+          pending2FAProcess = proc;
+          pending2FA = { email, serverUrl, env, isNewAccount: true, newAccountId };
+          settle({ success: false, requiresTwoFactor: true });
+        }
+        if (!settled && isAlreadyLoggedIn(stderr)) {
+          runBwForAccount(newAccountId, ['unlock', '--passwordenv', 'BW_PASSWORD', '--raw'], env)
+            .then(out => onAddSuccess(out.trim()))
+            .catch(err => settle({ success: false, error: extractBwError(String(err.message)) }));
+        }
+      });
+
+      // Safety timeout: assume 2FA waiting on stdin
+      const timeout = setTimeout(() => {
+        if (!settled) {
+          pending2FAProcess = proc;
+          pending2FA = { email, serverUrl, env, isNewAccount: true, newAccountId };
+          settle({ success: false, requiresTwoFactor: true });
+        }
+      }, 10000);
+
+      proc.on('close', exitCode => {
+        clearTimeout(timeout);
+        if (settled) return;
+        const msg = stderr + stdout;
+        if (exitCode === 0) {
+          onAddSuccess(stdout.trim());
+        } else if (isAlreadyLoggedIn(msg)) {
+          runBwForAccount(newAccountId, ['unlock', '--passwordenv', 'BW_PASSWORD', '--raw'], env)
+            .then(out => onAddSuccess(out.trim()))
+            .catch(err => settle({ success: false, error: extractBwError(String(err.message)) }));
+        } else if (isTwoFactorRequired(msg)) {
+          pending2FA = { email, serverUrl, env, isNewAccount: true, newAccountId };
+          settle({ success: false, requiresTwoFactor: true });
+        } else {
+          settle({ success: false, error: extractBwError(msg) });
+        }
+      });
+
+      proc.on('error', err => {
+        clearTimeout(timeout);
+        settle({ success: false, error: (err.code === 'ENOENT' ? makeBwEnoentError() : err).message });
+      });
+    });
   });
 
   // ─── Generic Settings ─────────────────────────────────────────────────────────
@@ -2525,11 +2784,49 @@ function handleAlreadyLoggedIn(email, serverUrl, env, settle) {
       if (serverUrl) store.set('bwServerUrl', serverUrl);
       // Ensure the account profile is saved even for the "already logged in" path
       saveAccountProfile(email, serverUrl || 'https://bitwarden.com');
+      // Cache session for fast account switching
+      const activeId = store.get('activeAccountId', null);
+      if (activeId) bwSessions.set(activeId, bwSession);
       settle({ success: true });
     })
     .catch(err => {
       settle({ success: false, error: extractBwError(String(err.message)) });
     });
+}
+
+/**
+ * Finalise adding a new account from the "Add Account" form.
+ * Saves the current account's session, activates the new one, persists the
+ * profile, and begins a background item load for the new vault.
+ */
+function _finaliseAddLogin(newAccountId, email, serverUrl, sessionKey, existingProfiles, existingProfile) {
+  // Preserve current account's session so it can be restored on switch-back
+  const currentId = store.get('activeAccountId', null);
+  if (currentId && bwSession) bwSessions.set(currentId, bwSession);
+
+  // Activate new account
+  bwSession = sessionKey;
+  bwSessions.set(newAccountId, sessionKey);
+  itemsCache = [];
+
+  // Persist profile if it doesn't exist yet
+  if (!existingProfile) {
+    const COLORS = ['#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#a855f7', '#06b6d4', '#ec4899', '#f97316'];
+    const color = COLORS[existingProfiles.length % COLORS.length];
+    const prof = { id: newAccountId, name: email.split('@')[0] || email, email, serverUrl, color };
+    store.set('accountProfiles', [
+      ...existingProfiles.filter(p => !(p.email === email && p.serverUrl === serverUrl)),
+      prof,
+    ]);
+  }
+  store.set('activeAccountId', newAccountId);
+  store.set('bwEmail', email);
+  store.set('bwServerUrl', serverUrl);
+
+  // Eagerly populate items cache for the new account in the background
+  runBw(['list', 'items', '--session', bwSession])
+    .then(out => { try { itemsCache = JSON.parse(out).map(mapBwItem); } catch {} })
+    .catch(() => {});
 }
 
 /**
@@ -2649,6 +2946,12 @@ app.whenReady().then(() => {
   registerGlobalShortcuts();
   loadOfflineQueue();   // Restore any queued edits from the previous session
   setupIpcHandlers();
+
+  // Ensure the active account's per-account bw data directory exists.
+  // getAccountDataDir performs a one-time migration from the global bw data dir
+  // on first call, so existing users keep their login state after this upgrade.
+  const activeId = store.get('activeAccountId', null);
+  if (activeId) getAccountDataDir(activeId);
 
   // ─── Auto-updater ──────────────────────────────────────────────────────────
   // Skip update checks in dev mode (no published release to compare against)

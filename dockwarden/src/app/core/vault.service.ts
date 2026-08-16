@@ -155,7 +155,11 @@ declare global {
         removeProfile: (id: string) => Promise<boolean>;
         getActive: () => Promise<string | null>;
         setActive: (id: string) => Promise<boolean>;
-        switch: (id: string) => Promise<{ success: boolean; error?: string }>;
+        switch: (id: string) => Promise<{ success: boolean; alreadyUnlocked?: boolean; needsLogin?: boolean; error?: string }>;
+        /** Returns { [accountId]: 'unlocked' | 'locked' } for all saved profiles. */
+        getSessionStates: () => Promise<Record<string, 'unlocked' | 'locked'>>;
+        /** Log in to an additional account without disturbing the active session. */
+        addLogin: (email: string, password: string, serverUrl?: string) => Promise<{ success: boolean; requiresTwoFactor?: boolean; error?: string }>;
       };
       snapshot: {
         getAll: () => Promise<VaultSnapshot[]>;
@@ -648,14 +652,27 @@ export class VaultService {
     return window.electronAPI.account.getActive();
   }
 
-  async switchAccount(id: string): Promise<{ success: boolean; error?: string }> {
+  async switchAccount(id: string): Promise<{ success: boolean; alreadyUnlocked?: boolean; needsLogin?: boolean; error?: string }> {
     if (!window.electronAPI) return { success: false, error: 'Not in Electron' };
     const result = await window.electronAPI.account.switch(id);
     if (result.success) {
-      this._authStatus.set('locked');
-      this._items.set([]);
+      if (result.alreadyUnlocked) {
+        // Fast path: the other account's session was still valid — vault is live
+        this._authStatus.set('unlocked');
+        // Items are being loaded in the background by main process; reload here too
+        this.loadItems().catch(() => {});
+        this.loadFolders().catch(() => {});
+      } else {
+        this._authStatus.set(result.needsLogin ? 'unauthenticated' : 'locked');
+        this._items.set([]);
+      }
     }
     return result;
+  }
+
+  async getAccountSessionStates(): Promise<Record<string, 'unlocked' | 'locked'>> {
+    if (!window.electronAPI) return {};
+    return window.electronAPI.account.getSessionStates();
   }
 
   // ── Snapshots ──────────────────────────────────────────────────────────────

@@ -49,6 +49,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getActive: () => ipcRenderer.invoke('account:get-active'),
     setActive: (id) => ipcRenderer.invoke('account:set-active', { id }),
     switch: (id) => ipcRenderer.invoke('account:switch', { id }),
+    /** Returns { [accountId]: 'unlocked' | 'locked' } for all saved profiles. */
+    getSessionStates: () => ipcRenderer.invoke('account:get-session-states'),
+    /** Log into a new account without disturbing the currently active session. */
+    addLogin: (email, password, serverUrl) =>
+      ipcRenderer.invoke('account:add-login', { email, password, serverUrl }),
   },
   snapshot: {
     getAll: () => ipcRenderer.invoke('snapshot:get-all'),

@@ -22,8 +22,8 @@
       </div>
 
       <div class="add-form-warning">
-        <i class="fas fa-triangle-exclamation" style="color:#f59e0b"></i>
-        This will log out of your current vault session. Your current account is saved and you can switch back at any time.
+        <i class="fas fa-circle-check" style="color:#22c55e"></i>
+        Your current vault session stays active — you can switch between accounts at any time.
       </div>
 
       <div class="add-form-body">
@@ -81,9 +81,15 @@
   } @else {
     <div class="accounts-list">
       @for (profile of profiles(); track profile.id; let i = $index) {
-        <div class="account-card" [class.active-card]="profile.id === activeId()">
+        <div class="account-card" [class.active-card]="profile.id === activeId()"
+             [class.switching-card]="switchingId() === profile.id">
           <div class="account-avatar" [style.background]="profile.color">
             {{ getInitials(profile.name) }}
+            <!-- Session-state ring on the avatar -->
+            <span class="avatar-status"
+                  [class.status-unlocked]="sessionState(profile.id) === 'unlocked'"
+                  [class.status-locked]="sessionState(profile.id) === 'locked'">
+            </span>
           </div>
           <div class="account-info">
             <div class="account-name">
@@ -91,16 +97,37 @@
               @if (profile.id === activeId()) {
                 <span class="active-badge"><i class="fas fa-circle" style="font-size:6px"></i> Active</span>
               }
+              @if (profile.id !== activeId()) {
+                @if (sessionState(profile.id) === 'unlocked') {
+                  <span class="session-badge session-badge--unlocked">
+                    <i class="fas fa-unlock" style="font-size:9px"></i> Unlocked
+                  </span>
+                } @else {
+                  <span class="session-badge session-badge--locked">
+                    <i class="fas fa-lock" style="font-size:9px"></i> Locked
+                  </span>
+                }
+              }
             </div>
             <div class="account-email">{{ profile.email }}</div>
             <div class="account-server">{{ profile.serverUrl }}</div>
           </div>
           <div class="account-actions">
             @if (profile.id !== activeId()) {
-              <button class="btn btn-secondary btn-sm" (click)="switchTo(profile)">
-                <i class="fas fa-right-left"></i> Switch
+              <button class="btn btn-secondary btn-sm"
+                      (click)="switchTo(profile)"
+                      [disabled]="!!switchingId()"
+                      [title]="sessionState(profile.id) === 'unlocked' ? 'Switch instantly — vault is already unlocked' : 'Switch and unlock'">
+                @if (switchingId() === profile.id) {
+                  <i class="fas fa-spinner fa-spin"></i> Switching…
+                } @else if (sessionState(profile.id) === 'unlocked') {
+                  <i class="fas fa-bolt"></i> Switch
+                } @else {
+                  <i class="fas fa-right-left"></i> Switch
+                }
               </button>
-              <button class="btn btn-danger btn-sm" (click)="remove(profile.id)" title="Remove account">
+              <button class="btn btn-danger btn-sm" (click)="remove(profile.id)" title="Remove account"
+                      [disabled]="!!switchingId()">
                 <i class="fas fa-trash"></i>
               </button>
             }
