@@ -107,9 +107,6 @@
       ]
     },
     "win": {
-      "signingHashAlgorithms": [
-        "sha256"
-      ],
       "target": [
         {
           "target": "nsis",
