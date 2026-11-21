@@ -22,6 +22,22 @@ on:
   push:
     branches:
       - master
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to build and upload
+        required: true
+        default: v2.8.0
+      platform:
+        description: Which installer to build
+        required: true
+        default: linux
+        type: choice
+        options:
+          - linux
+          - windows
+          - mac
+          - all
 
 permissions:
   contents: write
@@ -35,6 +51,7 @@ jobs:
   # ────────────────────────────────────────────────────────────────────────────
   release:
     name: Semantic Release
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     outputs:
       released: ${{ steps.sr.outputs.new_release_published }}
@@ -80,7 +97,12 @@ jobs:
   build:
     name: Build — ${{ matrix.name }}
     needs: release
-    if: needs.release.outputs.released == 'true'
+    if: >-
+      always() && !cancelled() &&
+      (
+        (github.event_name == 'push' && needs.release.result == 'success' && needs.release.outputs.released == 'true') ||
+        (github.event_name == 'workflow_dispatch' && (inputs.platform == 'all' || inputs.platform == matrix.platform))
+      )
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -89,18 +111,21 @@ jobs:
           - name: Windows
             os: windows-latest
             build_args: --win
+            platform: windows
           - name: macOS
             os: macos-latest
             build_args: --mac
+            platform: mac
           - name: Linux
             os: ubuntu-latest
             build_args: --linux
+            platform: linux
 
     steps:
       - name: Checkout release tag
         uses: actions/checkout@v4
         with:
-          ref: ${{ needs.release.outputs.tag }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || needs.release.outputs.tag }}
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -113,10 +138,22 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get update -y
-          sudo apt-get install -y \
-            libnss3-dev libatk1.0-dev libatk-bridge2.0-dev \
-            libgdk-pixbuf2.0-dev libgtk-3-dev libxss-dev \
-            libgbm-dev libasound2-dev rpm fakeroot
+          packages=(
+            libnss3-dev libatk1.0-dev libatk-bridge2.0-dev
+            libgtk-3-dev libxss-dev libgbm-dev rpm fakeroot
+          )
+          # Ubuntu 26.04 renamed the gdk-pixbuf and ALSA development packages.
+          if apt-cache show libgdk-pixbuf2.0-dev >/dev/null 2>&1; then
+            packages+=(libgdk-pixbuf2.0-dev)
+          else
+            packages+=(libgdk-pixbuf-xlib-2.0-dev)
+          fi
+          if apt-cache show libasound2-dev >/dev/null 2>&1; then
+            packages+=(libasound2-dev)
+          else
+            packages+=(libasound-dev)
+          fi
+          sudo apt-get install -y "${packages[@]}"
 
       - name: Install dependencies
         run: npm ci
