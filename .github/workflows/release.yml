@@ -101,25 +101,14 @@ jobs:
       always() && !cancelled() &&
       (
         (github.event_name == 'push' && needs.release.result == 'success' && needs.release.outputs.released == 'true') ||
-        (github.event_name == 'workflow_dispatch' && (inputs.platform == 'all' || inputs.platform == matrix.platform))
+        github.event_name == 'workflow_dispatch'
       )
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - name: Windows
-            os: windows-latest
-            build_args: --win
-            platform: windows
-          - name: macOS
-            os: macos-latest
-            build_args: --mac
-            platform: mac
-          - name: Linux
-            os: ubuntu-latest
-            build_args: --linux
-            platform: linux
+        # The job if runs before the matrix exists, so the platform choice selects the include list here.
+        include: ${{ fromJSON(github.event_name == 'workflow_dispatch' && inputs.platform == 'linux' && '[{"name":"Linux","os":"ubuntu-latest","build_args":"--linux"}]' || github.event_name == 'workflow_dispatch' && inputs.platform == 'windows' && '[{"name":"Windows","os":"windows-latest","build_args":"--win"}]' || github.event_name == 'workflow_dispatch' && inputs.platform == 'mac' && '[{"name":"macOS","os":"macos-latest","build_args":"--mac"}]' || '[{"name":"Windows","os":"windows-latest","build_args":"--win"},{"name":"macOS","os":"macos-latest","build_args":"--mac"},{"name":"Linux","os":"ubuntu-latest","build_args":"--linux"}]') }}
 
     steps:
       - name: Checkout release tag
