@@ -131,17 +131,21 @@ jobs:
             libnss3-dev libatk1.0-dev libatk-bridge2.0-dev
             libgtk-3-dev libxss-dev libgbm-dev rpm fakeroot
           )
-          # Ubuntu 26.04 renamed the gdk-pixbuf and ALSA development packages.
-          if apt-cache show libgdk-pixbuf2.0-dev >/dev/null 2>&1; then
-            packages+=(libgdk-pixbuf2.0-dev)
-          else
-            packages+=(libgdk-pixbuf-xlib-2.0-dev)
-          fi
-          if apt-cache show libasound2-dev >/dev/null 2>&1; then
-            packages+=(libasound2-dev)
-          else
-            packages+=(libasound-dev)
-          fi
+          # apt-cache show still succeeds for packages that have no install candidate.
+          add_first() {
+            local pkg candidate
+            for pkg in "$@"; do
+              candidate=$(apt-cache policy "$pkg" | awk '/Candidate:/ {print $2}')
+              if [ -n "$candidate" ] && [ "$candidate" != "(none)" ]; then
+                packages+=("$pkg")
+                return
+              fi
+            done
+            echo "None of these packages are installable: $*" >&2
+            exit 1
+          }
+          add_first libgdk-pixbuf2.0-dev libgdk-pixbuf-xlib-2.0-dev
+          add_first libasound2-dev libasound-dev
           sudo apt-get install -y "${packages[@]}"
 
       - name: Install dependencies
