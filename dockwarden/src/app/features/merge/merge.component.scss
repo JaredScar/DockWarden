@@ -1,0 +1,13 @@
+:host { display: block; }
+.page { max-width: 980px; }
+.layout { display: grid; grid-template-columns: 240px 1fr; gap: 16px; }
+.panel { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 12px; }
+.group, .group span { display: flex; width: 100%; }
+.group { flex-direction: column; text-align: left; background: transparent; color: inherit; border: 0; border-bottom: 1px solid var(--border); padding: 8px; cursor: pointer; }
+.group.active { background: var(--bg-selected); }
+.group span, .message { color: var(--text-secondary); font-size: 12px; }
+.picks, .check { display: flex; gap: 12px; margin-bottom: 12px; align-items: center; }
+select, table { width: 100%; }
+table { border-collapse: collapse; font-size: 13px; margin-bottom: 12px; }
+td, th { border-bottom: 1px solid var(--border); padding: 6px; text-align: left; vertical-align: top; }
+td label { display: flex; gap: 6px; }

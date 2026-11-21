@@ -1,0 +1,9 @@
+:host { display: block; }
+.page { max-width: 820px; }
+.page-header { align-items: center; }
+.badge { border: 1px solid var(--border); border-radius: 99px; padding: 2px 10px; color: var(--text-secondary); }
+.badge.on { color: var(--accent-green); border-color: var(--accent-green); }
+.panel { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 14px; margin-bottom: 14px; }
+.panel p, code { color: var(--text-secondary); }
+pre { background: var(--bg-tertiary); padding: 10px; border-radius: 6px; overflow-x: auto; }
+.command { white-space: pre-wrap; }

@@ -1,0 +1,25 @@
+:host { display: block; }
+.page { max-width: 860px; }
+.muted { color: var(--text-secondary); }
+.panel, .change {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+}
+.change {
+  display: block;
+  width: 100%;
+  text-align: left;
+  color: inherit;
+  margin-bottom: 8px;
+  cursor: pointer;
+}
+.change.unseen { border-color: var(--accent-blue); }
+.change p, .change time { color: var(--text-secondary); font-size: 12px; margin: 4px 0 0; }
+.origin {
+  margin-left: 8px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.empty { color: var(--text-secondary); }

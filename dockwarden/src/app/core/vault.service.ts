@@ -46,10 +46,17 @@ export interface SnapshotItem {
   folderId: string | null;
 }
 
+export interface SnapshotFieldChange {
+  field: string;
+  secret: boolean;
+  before?: string;
+  after?: string;
+}
+
 export interface SnapshotDiff {
   added: SnapshotItem[];
   deleted: SnapshotItem[];
-  modified: { before: SnapshotItem; after: SnapshotItem }[];
+  modified: { before: SnapshotItem; after: SnapshotItem; fields?: SnapshotFieldChange[] }[];
   unchanged: number;
   snapA: { label: string; timestamp: string };
   snapB: { label: string; timestamp: string };
@@ -114,7 +121,9 @@ declare global {
         getFolders: () => Promise<Folder[]>;
         getTotp: (itemId: string) => Promise<{ success: boolean; code?: string; error?: string }>;
         sync: () => Promise<SyncResult>;
-        editItem: (id: string, patch: Partial<VaultItem> & { folderId?: string | null; expiresAt?: string | null; username?: string; password?: string; website?: string }) => Promise<{ success: boolean; error?: string }>;
+        editItem: (id: string, patch: Partial<VaultItem> & { folderId?: string | null; expiresAt?: string | null; username?: string; password?: string; website?: string }) => Promise<{ success: boolean; error?: string; propagated?: { id: string; username?: string | null; password?: string | null; error?: string }[] }>;
+        deleteItem: (id: string) => Promise<{ success: boolean; error?: string }>;
+        mergeItems: (keeperId: string, loserId: string, patch: object) => Promise<{ success: boolean; error?: string }>;
         createItem: (item: object) => Promise<{ success: boolean; item?: VaultItem; error?: string }>;
         status: () => Promise<{ success: boolean; status: { status: string } }>;
         login: (email: string, password: string, serverUrl?: string) => Promise<{ success: boolean; requiresTwoFactor?: boolean; error?: string }>;
@@ -128,7 +137,30 @@ declare global {
         setSetting: (key: string, value: unknown) => Promise<boolean>;
       };
       autotype: {
-        send: (username: string, password: string, pressEnter: boolean) => Promise<{ success: boolean; error?: string }>;
+        send: (username: string, password: string, pressEnter: boolean, sequence?: string | null) => Promise<{ success: boolean; error?: string }>;
+        getContext: () => Promise<{ title: string; matches: { itemId: string; sequence: string; ruleId?: string }[] }>;
+      };
+      power: {
+        runStatus: () => Promise<{ listening: boolean; example: string }>;
+        getChanges: () => Promise<import('../shared/models').ChangeRecord[]>;
+        unseenCount: () => Promise<number>;
+        markSeen: (ids?: string[]) => Promise<number>;
+        rotateUrl: (website: string | null, rotateUrl?: string | null) => Promise<string | null>;
+        saveAutotypeRule: (itemId: string, rule: { value: string; sequence?: string; match?: string }) => Promise<{ success: boolean; error?: string; rules?: import('../shared/models').AutotypeRule[] }>;
+        showLargeType: (payload: { title: string; secret: string; ssid?: string }) => Promise<{ success: boolean; error?: string }>;
+        getLargeType: () => Promise<{ title: string; secret: string; qr: string | null; wifiQr: string | null } | null>;
+        closeLargeType: () => Promise<void>;
+      };
+      launch: {
+        ssh: (user: string, host: string, port?: string | number | null) => Promise<{ success: boolean; error?: string }>;
+        rdp: (host: string, port?: string | number | null) => Promise<{ success: boolean; error?: string }>;
+      };
+      keepass: {
+        pick: () => Promise<{ canceled: boolean; path?: string }>;
+        preview: (filePath: string, password?: string) => Promise<{ success: boolean; entries?: import('../shared/models').KeepassPreview[]; error?: string }>;
+        import: (filePath: string, password: string | undefined, indexes: number[]) => Promise<{ success: boolean; imported?: number; failed?: { title: string; error: string }[]; error?: string }>;
+        onProgress: (callback: (progress: { current: number; total: number; title: string }) => void) => void;
+        removeListeners: () => void;
       };
       launcher: {
         close: () => void;
@@ -429,31 +461,42 @@ export class VaultService {
   async updateItemMeta(id: string, patch: {
     name?: string; username?: string; password?: string; website?: string; notes?: string;
     tags?: string[]; expiresAt?: string | null; folderId?: string | null;
+    links?: VaultItem['links']; autotypeRules?: VaultItem['autotypeRules'];
+    defaultSequence?: string | null; rotateUrl?: string | null;
   }): Promise<{ success: boolean; error?: string }> {
     if (!window.electronAPI) return { success: false, error: 'Not running in Electron' };
-    const result = await window.electronAPI.vault.editItem(id, {
-      name: patch.name,
-      username: patch.username,
-      password: patch.password,
-      website: patch.website,
-      notes: patch.notes,
-      tags: patch.tags,
-      expiresAt: patch.expiresAt ?? null,
-      folderId: patch.folderId ?? null,
-    });
+    const body: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(patch)) {
+      if (value !== undefined) body[key] = value;
+    }
+    const result = await window.electronAPI.vault.editItem(
+      id,
+      body as Parameters<NonNullable<Window['electronAPI']>['vault']['editItem']>[1],
+    );
     if (result.success) {
+      const apply = (item: VaultItem): VaultItem => ({
+        ...item,
+        ...(patch.name !== undefined ? { name: patch.name } : {}),
+        ...(patch.username !== undefined ? { username: patch.username ?? null } : {}),
+        ...(patch.password !== undefined ? { password: patch.password ?? null } : {}),
+        ...(patch.website !== undefined ? { website: patch.website ?? null } : {}),
+        ...(patch.notes !== undefined ? { notes: patch.notes } : {}),
+        ...(patch.tags !== undefined ? { tags: patch.tags } : {}),
+        ...(patch.expiresAt !== undefined ? { expiresAt: patch.expiresAt } : {}),
+        ...(patch.folderId !== undefined ? { folderId: patch.folderId } : {}),
+        ...(patch.links !== undefined ? { links: patch.links } : {}),
+        ...(patch.autotypeRules !== undefined ? { autotypeRules: patch.autotypeRules } : {}),
+        ...(patch.defaultSequence !== undefined ? { defaultSequence: patch.defaultSequence } : {}),
+        ...(patch.rotateUrl !== undefined ? { rotateUrl: patch.rotateUrl } : {}),
+      });
       this._items.update(items => items.map(item => {
-        if (item.id !== id) return item;
+        if (item.id === id) return apply(item);
+        const propagated = result.propagated?.find(row => row.id === item.id && !row.error);
+        if (!propagated) return item;
         return {
           ...item,
-          ...(patch.name !== undefined ? { name: patch.name! } : {}),
-          ...(patch.username !== undefined ? { username: patch.username ?? null } : {}),
-          ...(patch.password !== undefined ? { password: patch.password ?? null } : {}),
-          ...(patch.website !== undefined ? { website: patch.website ?? null } : {}),
-          ...(patch.notes !== undefined ? { notes: patch.notes } : {}),
-          ...(patch.tags !== undefined ? { tags: patch.tags! } : {}),
-          ...(patch.expiresAt !== undefined ? { expiresAt: patch.expiresAt } : {}),
-          ...(patch.folderId !== undefined ? { folderId: patch.folderId } : {}),
+          ...(propagated.username !== undefined ? { username: propagated.username } : {}),
+          ...(propagated.password !== undefined ? { password: propagated.password } : {}),
         };
       }));
     }

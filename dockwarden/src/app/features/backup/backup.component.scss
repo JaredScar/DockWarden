@@ -422,6 +422,14 @@
 }
 
 .diff-item-name { flex: 1; color: var(--text-primary); }
+.diff-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0 12px 8px 32px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
 .diff-item-type { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
 .diff-rename { font-size: 11px; color: var(--text-muted); font-style: italic; }
 

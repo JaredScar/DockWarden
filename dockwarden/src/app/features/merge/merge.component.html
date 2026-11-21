@@ -1,0 +1,56 @@
+<div class="page">
+  <div class="page-header">
+    <div class="page-title">
+      <h1>Merge duplicates</h1>
+      <p>Logins that share a site and username. The copy you don't keep goes to the Bitwarden trash.</p>
+    </div>
+  </div>
+
+  @if (groups().length === 0) {
+    <div class="panel">No duplicate logins with the same site and username.</div>
+  } @else {
+    <div class="layout">
+      <div class="panel list">
+        @for (group of groups(); track group.key) {
+          <button class="group" [class.active]="groupKey() === group.key" (click)="selectGroup(group.key)">
+            <strong>{{ group.label }}</strong>
+            <span>{{ group.items.length }} copies</span>
+          </button>
+        }
+      </div>
+
+      @if (active(); as group) {
+        <div class="panel">
+          <div class="picks">
+            <label>Keep <select [ngModel]="keeperId()" (ngModelChange)="keeperId.set($event)">
+              @for (item of group.items; track item.id) { <option [value]="item.id">{{ item.name }}</option> }
+            </select></label>
+            <label>Remove <select [ngModel]="loserId()" (ngModelChange)="loserId.set($event)">
+              @for (item of group.items; track item.id) { <option [value]="item.id">{{ item.name }}</option> }
+            </select></label>
+          </div>
+
+          @if (keeper(); as left) {
+            @if (loser(); as right) {
+              @if (left.id !== right.id) {
+                <table>
+                  <tr><th>Field</th><th>Keep</th><th>Remove</th></tr>
+                  @for (field of ['name', 'username', 'password', 'website', 'notes']; track field) {
+                    <tr>
+                      <td>{{ field }}</td>
+                      <td><label><input type="radio" [name]="field" [checked]="choices()[field] !== 'loser'" (change)="choose(field, 'keeper')" /> {{ display(left, field) }}</label></td>
+                      <td><label><input type="radio" [name]="field" [checked]="choices()[field] === 'loser'" (change)="choose(field, 'loser')" /> {{ display(right, field) }}</label></td>
+                    </tr>
+                  }
+                </table>
+                <label class="check"><input type="checkbox" [ngModel]="keepBothUrls()" (ngModelChange)="keepBothUrls.set($event)" /> Keep both websites</label>
+                <button class="btn btn-primary" [disabled]="busy()" (click)="merge()">{{ busy() ? 'Merging…' : 'Merge' }}</button>
+              }
+            }
+          }
+        </div>
+      }
+    </div>
+  }
+  @if (message()) { <p class="message">{{ message() }}</p> }
+</div>

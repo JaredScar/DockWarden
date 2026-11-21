@@ -18,10 +18,14 @@ export class AutotypePickerComponent implements OnInit, OnDestroy {
   readonly loading = signal(true);
   readonly sending = signal(false);
   readonly error = signal('');
+  readonly windowTitle = signal('');
+  readonly matches = signal<{ itemId: string; sequence: string }[]>([]);
 
   readonly results = computed(() => {
     const q = this.query().toLowerCase().trim();
-    const all = this.allItems().filter(i => i.type === 'login' && (i.username || i.password));
+    const matchIds = new Set(this.matches().map(match => match.itemId));
+    let all = this.allItems().filter(i => i.type === 'login' && (i.username || i.password));
+    if (!q && matchIds.size) all = all.filter(item => matchIds.has(item.id));
     if (!q) return all.slice(0, 10);
     return all.filter(i =>
       i.name.toLowerCase().includes(q) ||
@@ -36,6 +40,11 @@ export class AutotypePickerComponent implements OnInit, OnDestroy {
     if (window.electronAPI) {
       const items = await window.electronAPI.vault.getCachedItems();
       this.allItems.set(items);
+      const context = await window.electronAPI.autotype?.getContext();
+      if (context) {
+        this.windowTitle.set(context.title || '');
+        this.matches.set(context.matches || []);
+      }
     }
     this.loading.set(false);
 
@@ -56,10 +65,13 @@ export class AutotypePickerComponent implements OnInit, OnDestroy {
     }
     this.sending.set(true);
     this.error.set('');
+    const matched = this.matches().find(match => match.itemId === item.id);
+    const sequence = matched?.sequence || item.defaultSequence || undefined;
     const result = await window.electronAPI.autotype.send(
       item.username ?? '',
       item.password ?? '',
-      this.pressEnter()
+      this.pressEnter() && !sequence,
+      sequence
     );
     this.sending.set(false);
     if (result.success) {
@@ -67,6 +79,26 @@ export class AutotypePickerComponent implements OnInit, OnDestroy {
     } else {
       this.error.set(result.error ?? 'Auto-Type failed.');
     }
+  }
+
+  async remember(item: VaultItem, event: Event): Promise<void> {
+    event.stopPropagation();
+    if (!window.electronAPI?.power || !this.windowTitle()) return;
+    const value = this.suggestWindow(this.windowTitle());
+    const result = await window.electronAPI.power.saveAutotypeRule(item.id, {
+      value,
+      sequence: item.defaultSequence || '{USERNAME}{TAB}{PASSWORD}{ENTER}',
+      match: 'contains',
+    });
+    this.error.set(result.success ? `Remembered “${value}” for ${item.name}` : (result.error || 'Could not save the rule'));
+  }
+
+  private suggestWindow(title: string): string {
+    const stripped = title
+      .replace(/\s[–—-]\s*(Google Chrome|Mozilla Firefox|Firefox|Microsoft Edge|Safari|Brave|Opera|Arc)\s*$/i, '')
+      .trim();
+    const parts = stripped.split(/\s[–—-]\s/).map(part => part.trim()).filter(Boolean);
+    return (parts[0] || stripped).slice(0, 60);
   }
 
   close(): void {

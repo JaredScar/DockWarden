@@ -35,11 +35,15 @@
     "dompurify": "^3.4.11",
     "electron-store": "^11.0.2",
     "electron-updater": "^6.8.3",
+    "fast-xml-parser": "^5.12.1",
     "fuse.js": "^7.3.0",
+    "hash-wasm": "^4.13.0",
+    "kdbxweb": "^2.1.1",
     "marked": "^15.0.12",
     "node-cron": "^4.2.1",
     "primeicons": "^7.0.0",
     "primeng": "^21.1.9",
+    "qrcode": "^1.5.4",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0",
     "zone.js": "^0.16.2",
@@ -75,6 +79,9 @@
     "files": [
       "electron/**/*",
       "dist/dockwarden/browser/**/*"
+    ],
+    "extraResources": [
+      { "from": "electron/dw-run.js", "to": "dw-run.js" }
     ],
     "publish": {
       "provider": "github",

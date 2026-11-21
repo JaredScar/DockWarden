@@ -1,0 +1,18 @@
+<div class="stage" (click)="close()">
+  <header>
+    <span>{{ title() }}</span>
+    <div class="tools" (click)="$event.stopPropagation()">
+      @if (wifiQr()) {
+        <button type="button" (click)="showWifi.set(!showWifi())">{{ showWifi() ? 'Password code' : 'Wi-Fi code' }}</button>
+      }
+      <button type="button" (click)="close()">Close</button>
+    </div>
+  </header>
+  @if (showWifi() && wifiQr()) {
+    <img [src]="wifiQr()!" alt="Wi-Fi join code" />
+  } @else {
+    <p [style.font-size]="fontSize()">{{ secret() }}</p>
+    @if (qr()) { <img [src]="qr()!" alt="Password code" /> }
+  }
+  <footer>Click anywhere to hide. This window closes when it loses focus.</footer>
+</div>

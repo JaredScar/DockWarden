@@ -1,0 +1,10 @@
+:host { display: block; }
+.page { max-width: 860px; }
+.panel { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 14px; margin-bottom: 14px; }
+.row { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; }
+.path, small, p { color: var(--text-secondary); }
+.entry { display: flex; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border-light); }
+.entry span { display: flex; flex-direction: column; }
+input[type="password"] { background: var(--bg-tertiary); color: inherit; border: 1px solid var(--border); border-radius: 4px; padding: 6px 8px; }
+.ok { color: var(--accent-green); }
+.error { color: var(--accent-red); }

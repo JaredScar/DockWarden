@@ -1,0 +1,7 @@
+:host, .stage { display: block; height: 100vh; background: #0d1117; color: #f0f6fc; }
+.stage { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; padding: 24px; cursor: pointer; }
+header, footer { width: 100%; display: flex; justify-content: space-between; color: #8b949e; font-size: 13px; }
+p { margin: 0; letter-spacing: 0.08em; word-break: break-all; text-align: center; font-weight: 650; }
+img { width: 220px; height: 220px; background: white; border-radius: 8px; }
+button { background: transparent; color: inherit; border: 1px solid #30363d; border-radius: 6px; padding: 4px 8px; cursor: pointer; }
+.tools { display: flex; gap: 8px; }

@@ -11,6 +11,7 @@ import { WatchtowerService } from '../watchtower/watchtower.service';
 import { WatchtowerCategory, Severity } from '../watchtower/watchtower.models';
 import { MarkdownPipe } from '../../shared/pipes/markdown.pipe';
 import { VaultItem } from '../../shared/models';
+import { ItemPowerPanelComponent } from './item-power-panel.component';
 import Fuse from 'fuse.js';
 
 const PRESET_EMOJIS = ['🔑','🏦','💳','📧','🛒','🏠','💼','🔒','🌐','📱','🖥️','⚙️','☁️','🎮','🎵','📚','🏥','✈️','🔐','💡'];
@@ -40,7 +41,7 @@ export interface RiskLabel {
 @Component({
   selector: 'app-items',
   standalone: true,
-  imports: [CommonModule, FormsModule, MarkdownPipe],
+  imports: [CommonModule, FormsModule, MarkdownPipe, ItemPowerPanelComponent],
   templateUrl: './items.component.html',
   styleUrl: './items.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -423,25 +424,35 @@ export class ItemsComponent implements OnInit, OnDestroy {
     const expiresAt = this.editExpiry() || null;
     const folderId = this.editFolder() || null;
 
-    const result = await this.vaultService.updateItemMeta(item.id, {
+    const passwordChanged = (item.password ?? '') !== this.editPassword();
+    const usernameChanged = (item.username ?? '') !== this.editUsername();
+    const patch: Parameters<VaultService['updateItemMeta']>[1] = {
       name: this.editName() || item.name,
-      username: item.username !== null ? this.editUsername() : undefined,
-      password: item.password !== null ? this.editPassword() : undefined,
       website: item.website !== null || this.editWebsite() ? this.editWebsite() || undefined : undefined,
       notes: this.editNotes() || undefined,
       tags: this.editTags(),
       expiresAt,
       folderId,
-    });
+    };
+    if (!(item.links?.username && usernameChanged) && item.username !== null) patch.username = this.editUsername();
+    if (!(item.links?.password && passwordChanged) && item.password !== null) patch.password = this.editPassword();
+    const result = await this.vaultService.updateItemMeta(item.id, patch);
+    if (result.success && item.links?.password && passwordChanged) {
+      await this.vaultService.updateItemMeta(item.links.password, { password: this.editPassword() });
+    }
+    if (result.success && item.links?.username && usernameChanged) {
+      await this.vaultService.updateItemMeta(item.links.username, { username: this.editUsername() });
+    }
 
     this.saving.set(false);
     if (result.success) {
       this.editing.set(false);
-      this.selectedItem.set({
+      const fresh = this.vaultService.items().find(entry => entry.id === item.id);
+      this.selectedItem.set(fresh ? { ...fresh } : {
         ...item,
         name: this.editName() || item.name,
-        username: item.username !== null ? (this.editUsername() || null) : item.username,
-        password: item.password !== null ? (this.editPassword() || null) : item.password,
+        username: this.editUsername() || null,
+        password: this.editPassword() || null,
         website: this.editWebsite() || null,
         notes: this.editNotes() || undefined,
         tags: this.editTags(),
@@ -454,6 +465,18 @@ export class ItemsComponent implements OnInit, OnDestroy {
   }
 
   // ── Helpers ────────────────────────────────────────────────────────────────
+
+  onPowerChanged(): void {
+    const id = this.selectedItem()?.id;
+    if (!id) return;
+    const fresh = this.vaultService.items().find(entry => entry.id === id);
+    if (fresh) this.selectedItem.set({ ...fresh });
+  }
+
+  linkName(id: string | null | undefined): string {
+    if (!id) return 'another item';
+    return this.vaultService.items().find(entry => entry.id === id)?.name || 'another item';
+  }
 
   async copyToClipboard(text: string, field: string): Promise<void> {
     await this.clipboardService.copy(text, field);

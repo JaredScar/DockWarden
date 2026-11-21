@@ -4,6 +4,8 @@ const fs = require('fs');
 const os = require('os');
 const { spawn } = require('child_process');
 const { autoUpdater } = require('electron-updater');
+const powerLib = require('./power-lib');
+const { createPowerFeatures } = require('./power-features');
 
 const isDev = process.env.ELECTRON_ENV === 'development';
 
@@ -201,6 +203,7 @@ function applyPatchToItem(item, patch) {
     if (idx >= 0) item.fields[idx].value = patch.expiresAt ?? '';
     else if (patch.expiresAt) item.fields.push({ name: '_dw_expires', value: patch.expiresAt, type: 0 });
   }
+  powerLib.applyExtra(item, patch);
 }
 
 // Flush all queued operations. Returns { applied, conflicts, errors }
@@ -569,7 +572,10 @@ function openExternalSafely(url) {
 // The CLI path has a dedicated, validated + encrypted setter (bw:set-cli-path)
 // and is surfaced (decrypted) only via bw:get-config — so the raw encrypted blob
 // should never flow through the unrestricted generic store API.
-const PROTECTED_STORE_KEYS = new Set(['bwCliPath', 'bwCliPathEnc', 'backupDir']);
+const PROTECTED_STORE_KEYS = new Set([
+  'bwCliPath', 'bwCliPathEnc', 'backupDir',
+  'vaultFingerprint', 'changeInbox', 'localEditMarks',
+]);
 
 // ─── Backup directory safety ──────────────────────────────────────────────────
 // backupDir decides where the (encrypted) vault export is written. It must only
@@ -675,7 +681,7 @@ function mapBwItem(bwItem) {
     }
   }
 
-  return item;
+  return powerLib.decorateItem(bwItem, item);
 }
 
 function mapItemType(bwType) {
@@ -1090,7 +1096,7 @@ function registerGlobalShortcuts() {
   });
 
   globalShortcut.register('CmdOrCtrl+Alt+A', () => {
-    openLauncherWindow('autotype');
+    getPower().onAutotypeHotkey();
   });
 
   // Quick Generate — opens the generator floating window
@@ -1364,10 +1370,12 @@ function setupIpcHandlers() {
       await runBw(['lock']);
       bwSession = null;
       if (activeId) bwSessions.delete(activeId);
+      getPower().syncSession();
       return { success: true };
     } catch (err) {
       bwSession = null;
       if (activeId) bwSessions.delete(activeId);
+      getPower().syncSession();
       return { success: false, error: err.message };
     }
   });
@@ -1379,10 +1387,12 @@ function setupIpcHandlers() {
       bwSession = null;
       if (activeId) bwSessions.delete(activeId);
       store.set('bwEmail', null);
+      getPower().syncSession();
       return { success: true };
     } catch (err) {
       bwSession = null;
       if (activeId) bwSessions.delete(activeId);
+      getPower().syncSession();
       return { success: false, error: err.message };
     }
   });
@@ -1396,6 +1406,7 @@ function setupIpcHandlers() {
     try {
       const items = await runBwJson(['list', 'items', '--session', bwSession]);
       itemsCache = items.map(mapBwItem);
+      getPower().syncSession();
       return itemsCache;
     } catch (err) {
       console.error('vault:get-items error:', err.message);
@@ -1419,12 +1430,10 @@ function setupIpcHandlers() {
         label: 'Auto (sync)',
         timestamp: new Date().toISOString(),
         itemCount: itemsCache.length,
-        items: itemsCache.map(i => ({
-          id: i.id, name: i.name, type: i.type,
-          lastModified: i.lastModified, folderId: i.folderId || null,
-        })),
+        items: itemsCache.map(powerLib.snapshotItem),
       };
       store.set('vaultSnapshots', [newSnap, ...snaps].slice(0, 50));
+      getPower().recordSync(itemsCache);
 
       // Sync succeeded — clear offline mode and attempt queue flush
       if (isOfflineMode) setOfflineMode(false);
@@ -1505,10 +1514,13 @@ function setupIpcHandlers() {
           item.fields.push({ name: '_dw_expires', value: patch.expiresAt, type: 0 });
         }
       }
+      powerLib.applyExtra(item, patch);
 
       const encoded = Buffer.from(JSON.stringify(item)).toString('base64');
       await runBw(['edit', 'item', id, encoded, '--session', bwSession]);
-      return { success: true, id };
+      getPower().markLocal(id);
+      const propagated = await getPower().propagateLinks(id, patch);
+      return { success: true, id, propagated };
     } catch (err) {
       // Auto-switch to offline mode on network error and queue the edit
       if (isNetworkError(err.message)) {
@@ -1701,106 +1713,6 @@ function setupIpcHandlers() {
     return true;
   });
 
-  // ─── Auto-Type (Windows only) ──────────────────────────────────────────────
-
-  ipcMain.handle('autotype:send', async (_, { username, password, pressEnter }) => {
-    const platform = process.platform;
-    if (platform !== 'win32' && platform !== 'darwin') {
-      return { success: false, error: 'Auto-Type is supported on Windows and macOS only.' };
-    }
-
-    try {
-      mainWindow?.minimize();
-
-      if (platform === 'win32') {
-        // ── Windows: PowerShell SendKeys ──────────────────────────────────────
-        function escSK(str) {
-          return (str || '').replace(/[+^%~(){}[\]]/g, ch => `{${ch}}`);
-        }
-
-        // Credentials are passed to PowerShell over stdin and never written to
-        // disk. The script file itself contains no secrets — only the logic to
-        // read the piped JSON — so a world-readable temp dir can't leak the
-        // password the way a plaintext data file would.
-        const scriptFile = path.join(app.getPath('temp'), `dw-at-${Date.now()}.ps1`);
-        const scriptFileEsc = scriptFile.replace(/\\/g, '\\\\');
-
-        const script = [
-          'Add-Type -AssemblyName System.Windows.Forms',
-          '$d = [Console]::In.ReadToEnd() | ConvertFrom-Json',
-          'Start-Sleep -Milliseconds 900',
-          'if ($d.username) { [System.Windows.Forms.SendKeys]::SendWait($d.username) }',
-          'if ($d.username -and $d.password) { [System.Windows.Forms.SendKeys]::SendWait("{TAB}") }',
-          'if ($d.password) { [System.Windows.Forms.SendKeys]::SendWait($d.password) }',
-          'if ($d.pressEnter) { [System.Windows.Forms.SendKeys]::SendWait("{ENTER}") }',
-          `Remove-Item '${scriptFileEsc}' -ErrorAction SilentlyContinue`,
-        ].join('\n');
-
-        fs.writeFileSync(scriptFile, script, 'utf8');
-
-        const proc = spawn('powershell.exe', [
-          '-ExecutionPolicy', 'Bypass',
-          '-NonInteractive',
-          '-WindowStyle', 'Hidden',
-          '-File', scriptFile,
-        ], { stdio: ['pipe', 'ignore', 'ignore'] });
-
-        // Pipe the (SendKeys-escaped) credentials over stdin, then close it.
-        proc.stdin.write(JSON.stringify({
-          username: escSK(username || ''),
-          password: escSK(password || ''),
-          pressEnter: !!pressEnter,
-        }));
-        proc.stdin.end();
-        proc.unref();
-
-      } else {
-        // ── macOS: pbcopy + osascript (handles all Unicode / special chars) ───
-        // Uses clipboard as an intermediary so no AppleScript string escaping
-        // is needed — works with any password including quotes, backslashes, etc.
-        const pbcopy = (text) => new Promise((resolve, reject) => {
-          const proc = spawn('pbcopy');
-          proc.on('error', reject);
-          proc.on('close', resolve);
-          proc.stdin.write(text ?? '', 'utf8');
-          proc.stdin.end();
-        });
-
-        // spawn osascript with shell:false so the AppleScript is passed as a
-        // direct argument, not interpolated into a shell command string.
-        const oса = (script) => new Promise((res, rej) => {
-          const p = spawn('osascript', ['-e', script], { shell: false });
-          p.on('error', rej);
-          p.on('close', code => code === 0 ? res() : rej(new Error(`osascript exited ${code}`)));
-        });
-
-        // Short delay so DockWarden finishes minimising before we steal focus
-        await new Promise(r => setTimeout(r, 900));
-
-        if (username) {
-          await pbcopy(username);
-          await oса('tell application "System Events" to keystroke "v" using command down');
-        }
-        if (username && password) {
-          await oса('tell application "System Events" to key code 48'); // Tab
-        }
-        if (password) {
-          await pbcopy(password);
-          await oса('tell application "System Events" to keystroke "v" using command down');
-        }
-        if (pressEnter) {
-          await oса('tell application "System Events" to key code 36'); // Return
-        }
-
-        // Clear clipboard after 2 s so the password is not left behind
-        setTimeout(() => pbcopy(''), 2000);
-      }
-
-      return { success: true };
-    } catch (err) {
-      return { success: false, error: err.message };
-    }
-  });
 
   // ─── Backup ────────────────────────────────────────────────────────────────
 
@@ -2167,6 +2079,7 @@ function setupIpcHandlers() {
     store.set('bwServerUrl', profile.serverUrl || 'https://bitwarden.com');
     bwSession = null;
     itemsCache = [];
+    getPower().syncSession();
 
     // ── Fast path: verify cached session ──────────────────────────────────────
     const cachedSession = bwSessions.get(id);
@@ -2178,7 +2091,10 @@ function setupIpcHandlers() {
           bwSession = cachedSession;
           // Reload items for the new account in the background
           runBw(['list', 'items', '--session', bwSession])
-            .then(out => { try { itemsCache = JSON.parse(out).map(mapBwItem); } catch {} })
+            .then(out => {
+              try { itemsCache = JSON.parse(out).map(mapBwItem); } catch {}
+              getPower().syncSession();
+            })
             .catch(() => {});
           return { success: true, alreadyUnlocked: true };
         }
@@ -2340,10 +2256,7 @@ function setupIpcHandlers() {
       label: label || 'Manual snapshot',
       timestamp: new Date().toISOString(),
       itemCount: itemsCache.length,
-      items: itemsCache.map(i => ({
-        id: i.id, name: i.name, type: i.type,
-        lastModified: i.lastModified, folderId: i.folderId || null,
-      })),
+      items: itemsCache.map(powerLib.snapshotItem),
     };
     store.set('vaultSnapshots', [newSnap, ...snaps].slice(0, 50));
     return { success: true, snapshot: { id: newSnap.id, label: newSnap.label, timestamp: newSnap.timestamp, itemCount: newSnap.itemCount } };
@@ -2370,16 +2283,17 @@ function setupIpcHandlers() {
     let unchanged = 0;
 
     for (const [id, item] of bMap) {
-      if (!aMap.has(id)) added.push(item);
+      if (!aMap.has(id)) added.push(powerLib.publicSnap(item));
     }
     for (const [id, item] of aMap) {
-      if (!bMap.has(id)) deleted.push(item);
+      if (!bMap.has(id)) deleted.push(powerLib.publicSnap(item));
     }
     for (const [id, aItem] of aMap) {
       const bItem = bMap.get(id);
       if (bItem) {
-        if (aItem.lastModified !== bItem.lastModified || aItem.name !== bItem.name) {
-          modified.push({ before: aItem, after: bItem });
+        const fields = powerLib.fieldDiff(aItem, bItem);
+        if (aItem.lastModified !== bItem.lastModified || aItem.name !== bItem.name || fields.length) {
+          modified.push({ before: powerLib.publicSnap(aItem), after: powerLib.publicSnap(bItem), fields });
         } else {
           unchanged++;
         }
@@ -2938,11 +2852,39 @@ function setupContentSecurityPolicy() {
   session.defaultSession.setPermissionRequestHandler((_wc, _permission, cb) => cb(false));
 }
 
+let powerApi = null;
+function initPower() {
+  if (powerApi) return powerApi;
+  powerApi = createPowerFeatures({
+    ipcMain, app, BrowserWindow, dialog, Notification, screen,
+    store,
+    getSession: () => bwSession,
+    getItems: () => itemsCache,
+    setItems: (items) => { itemsCache = items; },
+    runBw, runBwJson, applyPatchToItem,
+    getActiveWindowTitle,
+    openLauncherWindow,
+    isLauncherOpen: () => !!(activeLauncherWindow && !activeLauncherWindow.isDestroyed()),
+    closeLauncher: () => { if (activeLauncherWindow && !activeLauncherWindow.isDestroyed()) activeLauncherWindow.close(); },
+    getMainWindow: () => mainWindow,
+    distIndexPath,
+    isDev,
+  });
+  powerApi.startServer();
+  powerApi.registerIpc();
+  return powerApi;
+}
+function getPower() {
+  if (!powerApi) throw new Error('DockWarden power features are not ready');
+  return powerApi;
+}
+
 app.whenReady().then(() => {
   setupContentSecurityPolicy();
   setupWebContentsSecurity();
   createMainWindow();
   createTray();
+  initPower();
   registerGlobalShortcuts();
   loadOfflineQueue();   // Restore any queued edits from the previous session
   setupIpcHandlers();
@@ -3012,5 +2954,6 @@ app.on('activate', () => {
 });
 
 app.on('will-quit', () => {
+  try { getPower().stop(); } catch { /* power features may not have started */ }
   globalShortcut.unregisterAll();
 });

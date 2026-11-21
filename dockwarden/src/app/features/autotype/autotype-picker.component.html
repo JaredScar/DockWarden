@@ -18,6 +18,7 @@
   </div>
 
   <p class="at-desc">
+    @if (windowTitle()) { Target: {{ windowTitle() }}. }
     Click an item to type its credentials into the previously focused window.
   </p>
 
@@ -37,6 +38,9 @@
             }
           </span>
           <span class="type-action">
+            @if (windowTitle()) {
+              <button type="button" class="remember" (click)="remember(item, $event)">Remember</button>
+            }
             @if (sending()) { <i class="fas fa-spinner fa-spin"></i> }
             @else { <i class="fas fa-keyboard"></i> Type }
           </span>

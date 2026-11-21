@@ -264,6 +264,19 @@
                     }
                     <span class="diff-item-type">{{ entry.before.type }}</span>
                   </div>
+                  @if (entry.fields?.length) {
+                    <div class="diff-fields">
+                      @for (field of entry.fields; track field.field) {
+                        <span>
+                          @if (field.secret) {
+                            {{ field.field }} changed
+                          } @else {
+                            {{ field.field }}: {{ field.before || '∅' }} → {{ field.after || '∅' }}
+                          }
+                        </span>
+                      }
+                    </div>
+                  }
                 }
               </div>
             }

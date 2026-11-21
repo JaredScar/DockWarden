@@ -9,6 +9,7 @@ import { FolderService } from './core/folder.service';
 import { WatchtowerService } from './features/watchtower/watchtower.service';
 import { FeatureFlagsService } from './core/feature-flags.service';
 import { OfflineQueueService } from './core/offline-queue.service';
+import { PowerService } from './core/power.service';
 import { VaultTemplate } from './shared/models';
 import { CommonModule } from '@angular/common';
 import { filter } from 'rxjs/operators';
@@ -32,6 +33,7 @@ export class App implements OnInit, OnDestroy {
   readonly watchtowerCriticalCount = this.watchtowerService.criticalCount;
   readonly featureFlagsService = inject(FeatureFlagsService);
   readonly offlineQueue = inject(OfflineQueueService);
+  readonly power = inject(PowerService);
   private _kbHandler?: (e: KeyboardEvent) => void;
 
   constructor() {
@@ -41,11 +43,14 @@ export class App implements OnInit, OnDestroy {
       const unlocked = this.isUnlocked();
       const justUnlocked = unlocked && previouslyLocked;
       previouslyLocked = !unlocked;
-      if (justUnlocked && this.watchtowerService.settingsLoaded()) {
-        const { autoScanOnUnlock } = this.watchtowerService.settings();
-        if (autoScanOnUnlock) {
-          // Small delay so vault items are populated before the scan starts
-          setTimeout(() => this.watchtowerService.startScan(), 1500);
+      if (justUnlocked) {
+        this.power.refresh();
+        if (this.watchtowerService.settingsLoaded()) {
+          const { autoScanOnUnlock } = this.watchtowerService.settings();
+          if (autoScanOnUnlock) {
+            // Small delay so vault items are populated before the scan starts
+            setTimeout(() => this.watchtowerService.startScan(), 1500);
+          }
         }
       }
     });
@@ -65,7 +70,8 @@ export class App implements OnInit, OnDestroy {
       !url.startsWith('/unlock') &&
       !url.startsWith('/launcher') &&
       !url.startsWith('/autotype') &&
-      !url.startsWith('/generate')
+      !url.startsWith('/generate') &&
+      !url.startsWith('/large-type')
     );
   });
 
@@ -403,6 +409,9 @@ export class App implements OnInit, OnDestroy {
         this.vaultService.lock().then(() => this.router.navigate(['/unlock']));
       });
       window.electronAPI.on('vault:sync-requested', () => { this.syncVault(); });
+      window.electronAPI.on('vault:items-changed', () => {
+        this.vaultService.loadItems().then(() => this.power.refresh());
+      });
       // Launcher window picked an item → open it in the items view
       window.electronAPI.on('navigate-to-item', (itemId: unknown) => {
         this.router.navigate(['/items'], { queryParams: { select: itemId as string } });
@@ -481,7 +490,10 @@ export class App implements OnInit, OnDestroy {
 
   // ── Helpers ────────────────────────────────────────────────────────────────
 
-  async syncVault(): Promise<void> { await this.vaultService.sync(); }
+  async syncVault(): Promise<void> {
+    await this.vaultService.sync();
+    await this.power.refresh();
+  }
 
   async lockVault(): Promise<void> {
     await this.vaultService.lock();

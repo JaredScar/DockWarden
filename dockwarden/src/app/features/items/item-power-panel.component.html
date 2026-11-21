@@ -1,0 +1,91 @@
+<section class="power-panel">
+  <div class="power-head">
+    <h3>Power tools</h3>
+    @if (busy()) { <span class="muted">{{ busy() }}</span> }
+  </div>
+
+  @if (item().type === 'login') {
+    <div class="block">
+      <div class="label">LINKED FIELDS</div>
+      <p class="muted">Dependents stay in sync when the source password or username changes. Other Bitwarden apps see the updated value.</p>
+      <label class="line">
+        <span>Password source</span>
+        <select [ngModel]="item().links?.password || ''" (ngModelChange)="saveLinks(item().links?.username || '', $event)">
+          <option value="">Not linked</option>
+          @for (choice of linkChoices(); track choice.id) {
+            <option [value]="choice.id">{{ choice.name }}</option>
+          }
+        </select>
+      </label>
+      <label class="line">
+        <span>Username source</span>
+        <select [ngModel]="item().links?.username || ''" (ngModelChange)="saveLinks($event, item().links?.password || '')">
+          <option value="">Not linked</option>
+          @for (choice of linkChoices(); track choice.id) {
+            <option [value]="choice.id">{{ choice.name }}</option>
+          }
+        </select>
+      </label>
+      @if (item().links?.password) {
+        <p class="muted">Password follows {{ linkName(item().links?.password) }}.</p>
+      }
+    </div>
+
+    <div class="block">
+      <div class="label">AUTO-TYPE</div>
+      <p class="muted">When a window title contains a rule, Ctrl+Alt+A types that sequence. Otherwise the picker opens.</p>
+      <label class="line">
+        <span>Default sequence</span>
+        <input [ngModel]="item().defaultSequence || ''" (change)="onSequence($event)" placeholder="{USERNAME}{TAB}{PASSWORD}{ENTER}" />
+      </label>
+      @for (rule of item().autotypeRules || []; track rule.id) {
+        <div class="rule">
+          <span>{{ rule.value }}</span>
+          <code>{{ rule.sequence }}</code>
+          <button type="button" class="btn btn-ghost btn-sm" (click)="removeRule(rule.id)">Remove</button>
+        </div>
+      }
+      <div class="line">
+        <input placeholder="Window title contains…" [ngModel]="ruleWindow()" (ngModelChange)="ruleWindow.set($event)" />
+        <input placeholder="Sequence" [ngModel]="ruleSequence()" (ngModelChange)="ruleSequence.set($event)" />
+        <button type="button" class="btn btn-secondary btn-sm" (click)="addRule()">Add</button>
+      </div>
+    </div>
+  }
+
+  <div class="block">
+    <div class="label">ACTIONS</div>
+    <div class="actions">
+      @if (item().password) {
+        <button type="button" class="btn btn-secondary btn-sm" (click)="showLargeType()">Large type</button>
+        <button type="button" class="btn btn-secondary btn-sm" (click)="power.beginRotation(item())">Rotate</button>
+        <button type="button" class="btn btn-ghost btn-sm" (click)="copyReference('password')">Copy dw:// ref</button>
+      }
+      @if (field(['Host', 'host', 'Hostname', 'IP'])) {
+        <button type="button" class="btn btn-secondary btn-sm" (click)="launchSsh()">Open SSH</button>
+        <button type="button" class="btn btn-secondary btn-sm" (click)="launchRdp()">Open RDP</button>
+        <button type="button" class="btn btn-ghost btn-sm" (click)="copyDatabaseUrl()">Copy DB URL</button>
+      }
+      <a routerLink="/rotate" class="btn btn-ghost btn-sm">Rotation desk</a>
+    </div>
+    <label class="line">
+      <span>Change-password page</span>
+      <input [ngModel]="item().rotateUrl || ''" (change)="onRotateUrl($event)" placeholder="https://example.com/account/password" />
+    </label>
+    @if (message()) { <p class="muted">{{ message() }}</p> }
+    @if (power.rotationError()) { <p class="error">{{ power.rotationError() }}</p> }
+  </div>
+
+  @if (power.rotating(); as pending) {
+    @if (pending.item.id === item().id) {
+      <div class="confirm">
+        <strong>New password copied.</strong>
+        <p class="muted">Update it on the website, then confirm. DockWarden will replace the vault password{{ item().links?.password ? ' on the linked source' : '' }}.</p>
+        <div class="actions">
+          <button type="button" class="btn btn-primary btn-sm" (click)="confirmRotate()">I changed it</button>
+          <button type="button" class="btn btn-ghost btn-sm" (click)="power.cancelRotation()">Cancel</button>
+        </div>
+      </div>
+    }
+  }
+</section>

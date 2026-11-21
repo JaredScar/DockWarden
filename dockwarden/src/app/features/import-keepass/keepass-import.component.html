@@ -1,0 +1,49 @@
+<div class="page">
+  <div class="page-header">
+    <div class="page-title">
+      <h1>KeePass import</h1>
+      <p>Bring across expiry dates, auto-type rules, tags, password history, and attachments that Bitwarden's importer drops. KDBX and KeePass XML (2.x) both work.</p>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="row">
+      <button class="btn btn-secondary" (click)="pick()">Choose file</button>
+      <span class="path">{{ filePath() || 'No file chosen' }}</span>
+    </div>
+    @if (needsPassword) {
+      <label class="row">Database password
+        <input type="password" [ngModel]="password()" (ngModelChange)="password.set($event)" />
+      </label>
+    }
+    <button class="btn btn-primary" [disabled]="!filePath() || busy()" (click)="preview()">Preview</button>
+  </div>
+
+  @if (entries().length) {
+    <div class="panel">
+      <p>{{ selected().size }} of {{ entries().length }} selected. Passwords stay on this machine and are not shown here.</p>
+      @for (entry of entries(); track entry.index) {
+        <label class="entry">
+          <input type="checkbox" [checked]="selected().has(entry.index)" (change)="toggle(entry.index)" />
+          <span>
+            <strong>{{ entry.title }}</strong>
+            <small>{{ entry.username }} · {{ entry.group || 'No folder' }}
+              @if (entry.expiresAt) { · expires {{ entry.expiresAt }} }
+              @if (entry.autotypeCount) { · auto-type }
+              @if (entry.hasTotp) { · TOTP }
+              @if (entry.historyCount) { · {{ entry.historyCount }} history }
+              @if (entry.attachments.length) { · {{ entry.attachments.length }} files }
+            </small>
+          </span>
+        </label>
+      }
+      <button class="btn btn-primary" [disabled]="busy() || selected().size === 0" (click)="importSelected()">
+        {{ busy() ? 'Importing…' : 'Import selected' }}
+      </button>
+      @if (progress()) { <p>{{ progress() }}</p> }
+    </div>
+  }
+
+  @if (result()) { <p class="ok">{{ result() }}</p> }
+  @if (error()) { <p class="error">{{ error() }}</p> }
+</div>

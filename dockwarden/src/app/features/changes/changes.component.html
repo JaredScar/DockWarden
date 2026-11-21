@@ -1,0 +1,26 @@
+<div class="page">
+  <div class="page-header">
+    <div class="page-title">
+      <h1>Change inbox</h1>
+      <p>What changed since the previous sync. Passwords are recorded as “changed”, never as the old or new value.</p>
+    </div>
+    <button class="btn btn-secondary btn-sm" (click)="markAll()">Mark all seen</button>
+  </div>
+
+  @if (loading()) {
+    <p class="muted">Loading…</p>
+  } @else if (records().length === 0) {
+    <div class="panel empty">Sync the vault once to start the baseline. The next sync lists what changed.</div>
+  } @else {
+    @for (record of records(); track record.id) {
+      <button class="change" [class.unseen]="!record.seen && record.origin === 'remote'" (click)="open(record)">
+        <div>
+          <strong>{{ record.itemName }}</strong>
+          <span class="origin">{{ record.origin === 'remote' ? 'Outside DockWarden' : 'This app' }}</span>
+        </div>
+        <p>{{ describe(record) }}</p>
+        <time>{{ record.timestamp | date:'medium' }}</time>
+      </button>
+    }
+  }
+</div>

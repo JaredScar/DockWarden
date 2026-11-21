@@ -1,0 +1,7 @@
+:host { display: block; }
+.page { max-width: 820px; }
+.panel { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 12px 14px; margin-bottom: 8px; }
+.row { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.panel p, .error { color: var(--text-secondary); font-size: 13px; margin: 4px 0 0; }
+.error { color: var(--accent-red); }
+.confirm { border-color: var(--accent-blue); }

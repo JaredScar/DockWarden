@@ -25,6 +25,24 @@ export interface VaultTemplate {
 
 export type ExpiryStatus = 'expired' | 'this-week' | 'this-month' | 'ok';
 
+export interface VaultCustomField {
+  name: string;
+  value: string;
+  hidden: boolean;
+}
+
+export interface AutotypeRule {
+  id: string;
+  match: 'contains' | 'regex';
+  value: string;
+  sequence: string;
+}
+
+export interface FieldLinks {
+  username: string | null;
+  password: string | null;
+}
+
 export interface VaultItem {
   id: string;
   name: string;
@@ -42,6 +60,41 @@ export interface VaultItem {
   lastModified: string;
   createdAt: string;
   passwordStrength: number | null;
+  links?: FieldLinks;
+  autotypeRules?: AutotypeRule[];
+  defaultSequence?: string | null;
+  rotateUrl?: string | null;
+  customFields?: VaultCustomField[];
+}
+
+export interface ChangeField {
+  field: string;
+  secret: boolean;
+  before?: string;
+  after?: string;
+}
+
+export interface ChangeRecord {
+  id: string;
+  itemId: string;
+  itemName: string;
+  timestamp: string;
+  origin: 'local' | 'remote';
+  kind: 'added' | 'deleted' | 'modified';
+  fields: ChangeField[];
+  seen: boolean;
+}
+
+export interface KeepassPreview {
+  index: number;
+  title: string;
+  username: string;
+  group: string;
+  expiresAt: string | null;
+  autotypeCount: number;
+  hasTotp: boolean;
+  historyCount: number;
+  attachments: string[];
 }
 
 export interface Tag {

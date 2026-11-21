@@ -258,6 +258,9 @@
                 </span>
               </div>
             }
+            @if (item.links?.username) {
+              <p class="link-hint">Username is linked to {{ linkName(item.links?.username) }}. Saving a change updates that item too.</p>
+            }
           </div>
         }
 
@@ -302,7 +305,14 @@
                 </div>
               }
             }
+            @if (item.links?.password) {
+              <p class="link-hint">Password is linked to {{ linkName(item.links?.password) }}. Saving a change updates that item too.</p>
+            }
           </div>
+        }
+
+        @if (!editing()) {
+          <app-item-power-panel [item]="item" (changed)="onPowerChanged()" />
         }
 
         <!-- SECURITY ALERTS (Watchtower findings for this item) -->

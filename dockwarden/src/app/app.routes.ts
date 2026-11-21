@@ -94,5 +94,34 @@ export const routes: Routes = [
     loadComponent: () => import('./features/watchtower/watchtower.component').then(m => m.WatchtowerComponent),
     canActivate: [authGuard],
   },
+  {
+    path: 'changes',
+    loadComponent: () => import('./features/changes/changes.component').then(m => m.ChangesComponent),
+    canActivate: [authGuard],
+  },
+  {
+    path: 'merge',
+    loadComponent: () => import('./features/merge/merge.component').then(m => m.MergeComponent),
+    canActivate: [authGuard],
+  },
+  {
+    path: 'import',
+    loadComponent: () => import('./features/import-keepass/keepass-import.component').then(m => m.KeepassImportComponent),
+    canActivate: [authGuard],
+  },
+  {
+    path: 'run',
+    loadComponent: () => import('./features/run/run-desk.component').then(m => m.RunDeskComponent),
+    canActivate: [authGuard],
+  },
+  {
+    path: 'rotate',
+    loadComponent: () => import('./features/rotate/rotate.component').then(m => m.RotateComponent),
+    canActivate: [authGuard],
+  },
+  {
+    path: 'large-type',
+    loadComponent: () => import('./features/largetype/large-type.component').then(m => m.LargeTypeComponent),
+  },
   { path: '**', redirectTo: 'unlock' },
 ];

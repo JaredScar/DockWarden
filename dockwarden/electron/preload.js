@@ -19,9 +19,35 @@ contextBridge.exposeInMainWorld('electronAPI', {
     setExpiryPolicies: (policies) => ipcRenderer.invoke('vault:set-expiry-policies', { policies }),
     getSetting: (key, defaultValue) => ipcRenderer.invoke('vault:get-setting', { key, defaultValue }),
     setSetting: (key, value) => ipcRenderer.invoke('vault:set-setting', { key, value }),
+    deleteItem: (id) => ipcRenderer.invoke('vault:delete-item', { id }),
+    mergeItems: (keeperId, loserId, patch) => ipcRenderer.invoke('vault:merge-items', { keeperId, loserId, patch }),
   },
   autotype: {
-    send: (username, password, pressEnter) => ipcRenderer.invoke('autotype:send', { username, password, pressEnter }),
+    send: (username, password, pressEnter, sequence) =>
+      ipcRenderer.invoke('autotype:send', { username, password, pressEnter, sequence: sequence || null }),
+    getContext: () => ipcRenderer.invoke('autotype:get-context'),
+  },
+  power: {
+    runStatus: () => ipcRenderer.invoke('power:run-status'),
+    getChanges: () => ipcRenderer.invoke('power:get-changes'),
+    unseenCount: () => ipcRenderer.invoke('power:unseen-count'),
+    markSeen: (ids) => ipcRenderer.invoke('power:mark-seen', { ids }),
+    rotateUrl: (website, rotateUrl) => ipcRenderer.invoke('power:rotate-url', { website, rotateUrl }),
+    saveAutotypeRule: (itemId, rule) => ipcRenderer.invoke('power:save-autotype-rule', { itemId, rule }),
+    showLargeType: (payload) => ipcRenderer.invoke('power:show-large-type', payload),
+    getLargeType: () => ipcRenderer.invoke('power:get-large-type'),
+    closeLargeType: () => ipcRenderer.invoke('power:close-large-type'),
+  },
+  launch: {
+    ssh: (user, host, port) => ipcRenderer.invoke('launch:ssh', { user, host, port }),
+    rdp: (host, port) => ipcRenderer.invoke('launch:rdp', { host, port }),
+  },
+  keepass: {
+    pick: () => ipcRenderer.invoke('keepass:pick'),
+    preview: (filePath, password) => ipcRenderer.invoke('keepass:preview', { filePath, password }),
+    import: (filePath, password, indexes) => ipcRenderer.invoke('keepass:import', { filePath, password, indexes }),
+    onProgress: (callback) => ipcRenderer.on('keepass:progress', (_, progress) => callback(progress)),
+    removeListeners: () => ipcRenderer.removeAllListeners('keepass:progress'),
   },
   launcher: {
     close: () => ipcRenderer.send('launcher:close'),
@@ -135,6 +161,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     const validChannels = [
       'vault:sync-requested',
       'vault:lock-requested',
+      'vault:items-changed',
       'navigate',
       'navigate-to-item',
     ];

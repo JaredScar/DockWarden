@@ -359,6 +359,33 @@
         }
       </div>
 
+      <div class="sidebar-section">
+        <div class="section-label">POWER</div>
+        <a routerLink="/changes" routerLinkActive="active" class="nav-item nav-item-sm">
+          <i class="fas fa-clock-rotate-left nav-icon-sm"></i>
+          <span class="nav-label">Changes</span>
+          @if (power.unseen() > 0) {
+            <span class="nav-count nav-count-warn">{{ power.unseen() }}</span>
+          }
+        </a>
+        <a routerLink="/merge" routerLinkActive="active" class="nav-item nav-item-sm">
+          <i class="fas fa-code-merge nav-icon-sm"></i>
+          <span class="nav-label">Merge</span>
+        </a>
+        <a routerLink="/rotate" routerLinkActive="active" class="nav-item nav-item-sm">
+          <i class="fas fa-arrows-rotate nav-icon-sm"></i>
+          <span class="nav-label">Rotation</span>
+        </a>
+        <a routerLink="/import" routerLinkActive="active" class="nav-item nav-item-sm">
+          <i class="fas fa-file-import nav-icon-sm"></i>
+          <span class="nav-label">KeePass</span>
+        </a>
+        <a routerLink="/run" routerLinkActive="active" class="nav-item nav-item-sm">
+          <i class="fas fa-terminal nav-icon-sm"></i>
+          <span class="nav-label">Secret Run</span>
+        </a>
+      </div>
+
       <!-- Bottom -->
       <div class="sidebar-bottom">
         <a routerLink="/settings" routerLinkActive="active" class="nav-item nav-item-sm">

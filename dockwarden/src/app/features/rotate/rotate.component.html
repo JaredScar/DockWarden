@@ -1,0 +1,34 @@
+<div class="page">
+  <div class="page-header">
+    <div class="page-title">
+      <h1>Rotation desk</h1>
+      <p>Generate a replacement, copy it, and open the site's password page. Confirm only after the site accepts it. DockWarden does not submit the form for you.</p>
+    </div>
+  </div>
+
+  @if (power.rotating(); as pending) {
+    <div class="panel confirm">
+      <strong>{{ pending.item.name }}</strong>
+      <p>The new password is on the clipboard{{ pending.url ? ' and the change page is open' : '' }}. Save it in the website, then confirm.</p>
+      <div class="row">
+        <button class="btn btn-primary btn-sm" (click)="confirm()">I changed it on the site</button>
+        <button class="btn btn-ghost btn-sm" (click)="power.cancelRotation()">Cancel</button>
+      </div>
+    </div>
+  }
+  @if (power.rotationError()) { <p class="error">{{ power.rotationError() }}</p> }
+
+  @if (candidates().length === 0) {
+    <div class="panel">Nothing is expired, due within 30 days, or older than 90 days.</div>
+  } @else {
+    @for (row of candidates(); track row.item.id) {
+      <div class="panel row">
+        <div>
+          <strong>{{ row.item.name }}</strong>
+          <p>{{ row.item.username }} · {{ row.reason }}</p>
+        </div>
+        <button class="btn btn-secondary btn-sm" (click)="power.beginRotation(row.item)">Rotate</button>
+      </div>
+    }
+  }
+</div>

@@ -1,0 +1,23 @@
+<div class="page">
+  <div class="page-header">
+    <div class="page-title">
+      <h1>Secret run</h1>
+      <p>Start a command with vault fields in its environment. This is the personal-vault version of <code>op run</code>. Secrets Manager is not required.</p>
+    </div>
+    <span class="badge" [class.on]="listening()">{{ listening() ? 'Unlocked' : 'Locked' }}</span>
+  </div>
+
+  <div class="panel">
+    <p>Put references in an env file or on the command line. DockWarden resolves them only while this vault is unlocked, and only the fields you name.</p>
+    <pre>API_TOKEN=dw://your-item-id/password
+DATABASE_URL=dw://your-item-id/uri</pre>
+    <p>Fields: <code>password</code>, <code>username</code>, <code>notes</code>, <code>uri</code>, <code>totp</code> (the current code, not the seed), or a custom field name. The item can be its name when that name is unique, or its id.</p>
+    <pre class="command">{{ example() }}</pre>
+    <button class="btn btn-secondary btn-sm" (click)="copy()">{{ copied() ? 'Copied' : 'Copy command' }}</button>
+  </div>
+
+  <div class="panel">
+    <h3>What this does not do</h3>
+    <p>Any program on this computer that can read the local token file can ask for those fields while the vault is unlocked. Locking DockWarden deletes the token. The command you run receives the secrets in its own environment, the same way a shell export would.</p>
+  </div>
+</div>
