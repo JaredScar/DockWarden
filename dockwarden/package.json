@@ -1,6 +1,6 @@
 {
   "name": "dockwarden",
-  "version": "2.7.1",
+  "version": "2.8.0",
   "description": "A cross-platform Bitwarden companion app with tags, auto-type, smart views, expiry reminders, and automated backups",
   "author": {
     "name": "JaredScar",
@@ -81,7 +81,10 @@
       "dist/dockwarden/browser/**/*"
     ],
     "extraResources": [
-      { "from": "electron/dw-run.js", "to": "dw-run.js" }
+      {
+        "from": "electron/dw-run.js",
+        "to": "dw-run.js"
+      }
     ],
     "publish": {
       "provider": "github",
