@@ -1,10 +1,11 @@
-const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, globalShortcut, Notification, shell, screen, dialog, safeStorage, session } = require('electron');
+const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, globalShortcut, Notification, shell, screen, dialog, safeStorage, session, clipboard } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const { spawn } = require('child_process');
 const { autoUpdater } = require('electron-updater');
 const powerLib = require('./power-lib');
+const { rendererPermissionAllowed } = require('./permissions');
 const { createPowerFeatures } = require('./power-features');
 
 const isDev = process.env.ELECTRON_ENV === 'development';
@@ -1794,6 +1795,14 @@ function setupIpcHandlers() {
 
   ipcMain.handle('app:get-version', () => app.getVersion());
 
+  // Main-process clipboard write. The renderer permission can still be denied
+  // after a timeout clear, and this path does not depend on a user gesture.
+  ipcMain.handle('clipboard:write', (_event, text) => {
+    if (typeof text !== 'string' || text.length > 100000) return false;
+    clipboard.writeText(text);
+    return true;
+  });
+
   // ─── Primary account per site ─────────────────────────────────────────────
 
   ipcMain.handle('primary:get-all', () => store.get('primaryItems', []));
@@ -2847,9 +2856,14 @@ function setupContentSecurityPolicy() {
     });
   });
 
-  // Deny all renderer permission requests (camera, geolocation, etc.) — the app
-  // needs none of them.
-  session.defaultSession.setPermissionRequestHandler((_wc, _permission, cb) => cb(false));
+  // Clipboard writes are the one permission the renderer needs. Everything else
+  // (camera, location, notification prompts) stays denied. Denying
+  // clipboard-sanitized-write makes navigator.clipboard.writeText reject, so
+  // click-to-copy looks like it did nothing.
+  session.defaultSession.setPermissionCheckHandler((_wc, permission) => rendererPermissionAllowed(permission));
+  session.defaultSession.setPermissionRequestHandler((_wc, permission, cb) => {
+    cb(rendererPermissionAllowed(permission));
+  });
 }
 
 let powerApi = null;

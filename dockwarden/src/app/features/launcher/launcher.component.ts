@@ -1,7 +1,8 @@
-import { Component, OnInit, OnDestroy, signal, computed, ChangeDetectionStrategy } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, signal, computed, ChangeDetectionStrategy } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
 import { VaultItem } from '../../shared/models';
+import { ClipboardService } from '../../core/clipboard.service';
 
 @Component({
   selector: 'app-launcher',
@@ -12,6 +13,7 @@ import { VaultItem } from '../../shared/models';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class LauncherComponent implements OnInit, OnDestroy {
+  private readonly clipboard = inject(ClipboardService);
   readonly query       = signal('');
   readonly allItems    = signal<VaultItem[]>([]);
   readonly selectedIdx = signal(0);
@@ -88,7 +90,8 @@ export class LauncherComponent implements OnInit, OnDestroy {
     try {
       const result = await window.electronAPI!.vault.getTotp(item.id);
       if (result.success && result.code) {
-        await navigator.clipboard.writeText(result.code);
+        const copied = await this.clipboard.copy(result.code, `${item.name} TOTP`);
+        if (!copied) return;
         this.totpCopiedId.set(item.id);
         if (this._copiedTimer) clearTimeout(this._copiedTimer);
         this._copiedTimer = setTimeout(() => this.totpCopiedId.set(null), 2000);

@@ -354,11 +354,21 @@
             <div class="field-label">ONE-TIME PASSWORD</div>
             <div class="field-value-row copyable"
                  [class.copied]="copiedField() === 'totp'"
-                 (click)="copyToClipboard(item.totp!, 'totp')"
-                 title="Click to copy one-time password">
-              <span class="field-value totp-value">{{ totpDisplay }}</span>
+                 (click)="copyTotp()"
+                 title="Click to copy the current code">
+              <span class="field-value" [class.totp-value]="!!totpCode()">
+                @if (totpCode()) {
+                  {{ formatTotp(totpCode()) }}
+                } @else if (totpError()) {
+                  {{ totpError() }}
+                } @else {
+                  Reading code…
+                }
+              </span>
               <div class="field-actions">
-                <i class="fas fa-rotate-right totp-ring" (click)="$event.stopPropagation()"></i>
+                @if (totpSeconds()) {
+                  <span class="totp-seconds">{{ totpSeconds() }}s</span>
+                }
                 <span class="copy-hint" [class.copied]="copiedField() === 'totp'">
                   <i class="{{ copiedField() === 'totp' ? 'fas fa-check' : 'fas fa-copy' }}"></i>
                 </span>

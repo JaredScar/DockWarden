@@ -508,10 +508,12 @@
   text-align: right;
 }
 
-.totp-ring {
-  font-size: 18px;
-  color: var(--accent-blue);
-  animation: spin 30s linear infinite;
+.totp-seconds {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  min-width: 28px;
+  text-align: right;
 }
 
 @keyframes spin {

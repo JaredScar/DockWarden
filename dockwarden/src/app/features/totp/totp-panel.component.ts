@@ -115,6 +115,7 @@ export class TotpPanelComponent implements OnInit, OnDestroy {
   });
 
   private _interval?: ReturnType<typeof setInterval>;
+  private readonly fallbackCodes = new Map<string, { code: string; periodStart: number }>();
 
   async ngOnInit(): Promise<void> {
     const icons = await this.vaultService.getCustomIcons();
@@ -132,13 +133,13 @@ export class TotpPanelComponent implements OnInit, OnDestroy {
     const entries: TotpEntry[] = [];
     for (const item of items) {
       try {
-        const { code, secondsLeft, period } = await computeTotp(item.totp!);
+        const { code, secondsLeft, period } = await this.codeFor(item);
         const urgency: TotpEntry['urgency'] =
           secondsLeft <= 5 ? 'critical' :
           secondsLeft <= 10 ? 'warn' : 'ok';
         entries.push({ item, code, secondsLeft, period, urgency });
       } catch {
-        // skip invalid secrets silently
+        // skip secrets that neither the local calculator nor bw can read
       }
     }
     // Sort by urgency (critical first), then alphabetically
@@ -151,9 +152,35 @@ export class TotpPanelComponent implements OnInit, OnDestroy {
   }
 
   async copyCode(entry: TotpEntry): Promise<void> {
-    await this.clipboardService.copy(entry.code, `${entry.item.name} TOTP`);
+    const copied = await this.clipboardService.copy(entry.code, `${entry.item.name} TOTP`);
+    if (!copied) return;
     this.copiedId.set(entry.item.id);
     setTimeout(() => this.copiedId.set(null), 2000);
+  }
+
+  private async codeFor(item: VaultItem): Promise<{ code: string; secondsLeft: number; period: number }> {
+    try {
+      return await computeTotp(item.totp!);
+    } catch {
+      const period = 30;
+      const periodStart = Math.floor(Date.now() / 1000 / period);
+      const cached = this.fallbackCodes.get(item.id);
+      if (cached && cached.periodStart === periodStart) {
+        return {
+          code: cached.code,
+          secondsLeft: period - (Math.floor(Date.now() / 1000) % period),
+          period,
+        };
+      }
+      const result = await window.electronAPI?.vault.getTotp(item.id);
+      if (!result?.success || !result.code) throw new Error(result?.error || 'no code');
+      this.fallbackCodes.set(item.id, { code: result.code.trim(), periodStart });
+      return {
+        code: result.code.trim(),
+        secondsLeft: period - (Math.floor(Date.now() / 1000) % period),
+        period,
+      };
+    }
   }
 
   formatCode(code: string): string {

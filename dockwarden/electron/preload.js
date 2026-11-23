@@ -150,6 +150,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     increment: (itemId) => ipcRenderer.invoke('usage:increment', { itemId }),
     getAll: () => ipcRenderer.invoke('usage:get-all'),
   },
+  clipboard: {
+    write: (text) => ipcRenderer.invoke('clipboard:write', text),
+  },
   app: {
     getStore: (key) => ipcRenderer.invoke('app:get-store', key),
     setStore: (key, value) => ipcRenderer.invoke('app:set-store', { key, value }),

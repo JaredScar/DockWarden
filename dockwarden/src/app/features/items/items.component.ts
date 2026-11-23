@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed, effect, ChangeDetectionStrategy, OnInit, OnDestroy } from '@angular/core';
+import { Component, inject, signal, computed, effect, untracked, ChangeDetectionStrategy, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Params, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
@@ -58,6 +58,11 @@ export class ItemsComponent implements OnInit, OnDestroy {
   private _editHandler?: () => void;
 
   readonly selectedItem = signal<VaultItem | null>(null);
+  readonly totpCode = signal('');
+  readonly totpSeconds = signal(0);
+  readonly totpError = signal('');
+  private totpWatchId: string | null = null;
+  private totpTimer: ReturnType<typeof setInterval> | null = null;
   readonly searchQuery = signal('');
   readonly showPassword = signal(false);
   readonly copiedField = signal<string | null>(null);
@@ -175,6 +180,12 @@ export class ItemsComponent implements OnInit, OnDestroy {
       } else {
         this.selectedItem.set(null);
       }
+    });
+
+    effect(() => {
+      const item = this.selectedItem();
+      const id = item?.totp ? item.id : null;
+      untracked(() => this.watchTotp(id));
     });
   }
 
@@ -363,6 +374,7 @@ export class ItemsComponent implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     this.paramSub?.unsubscribe();
     if (this._editHandler) document.removeEventListener('dw:start-edit', this._editHandler as EventListener);
+    if (this.totpTimer) clearInterval(this.totpTimer);
   }
 
   selectItem(item: VaultItem): void {
@@ -478,8 +490,51 @@ export class ItemsComponent implements OnInit, OnDestroy {
     return this.vaultService.items().find(entry => entry.id === id)?.name || 'another item';
   }
 
+  async copyTotp(): Promise<void> {
+    const code = this.totpCode();
+    if (!code) return;
+    await this.copyToClipboard(code, 'totp');
+  }
+
+  formatTotp(code: string): string {
+    return code.length === 6 ? `${code.slice(0, 3)} ${code.slice(3)}` : code;
+  }
+
+  private watchTotp(itemId: string | null): void {
+    if (this.totpWatchId === itemId && (itemId === null || this.totpTimer)) return;
+    this.totpWatchId = itemId;
+    if (this.totpTimer) clearInterval(this.totpTimer);
+    this.totpTimer = null;
+    this.totpCode.set('');
+    this.totpError.set('');
+    this.totpSeconds.set(0);
+    if (!itemId || !window.electronAPI) return;
+
+    const load = async (): Promise<void> => {
+      const result = await window.electronAPI!.vault.getTotp(itemId);
+      if (this.totpWatchId !== itemId) return;
+      if (result.success && result.code) {
+        this.totpCode.set(result.code.trim());
+        this.totpError.set('');
+      } else {
+        this.totpCode.set('');
+        this.totpError.set('Could not read the current code');
+      }
+      this.totpSeconds.set(30 - (Math.floor(Date.now() / 1000) % 30));
+    };
+
+    void load();
+    this.totpTimer = setInterval(() => {
+      const left = 30 - (Math.floor(Date.now() / 1000) % 30);
+      const previous = this.totpSeconds();
+      this.totpSeconds.set(left);
+      if (previous > 0 && left > previous) void load();
+    }, 1000);
+  }
+
   async copyToClipboard(text: string, field: string): Promise<void> {
-    await this.clipboardService.copy(text, field);
+    const copied = await this.clipboardService.copy(text, field);
+    if (!copied) return;
     this.copiedField.set(field);
     setTimeout(() => this.copiedField.set(null), 2000);
 
@@ -601,9 +656,4 @@ export class ItemsComponent implements OnInit, OnDestroy {
     return { label, class: status === 'this-week' ? 'badge-warning' : 'badge-info' };
   }
 
-  get totpDisplay(): string {
-    const item = this.selectedItem();
-    if (!item?.totp) return '';
-    return item.totp.replace(/(\d{3})(\d{3})/, '$1  $2');
-  }
 }

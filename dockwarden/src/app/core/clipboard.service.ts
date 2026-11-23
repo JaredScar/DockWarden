@@ -6,6 +6,9 @@ declare const window: Window & {
       getSetting: (key: string, defaultValue: unknown) => Promise<unknown>;
       setSetting: (key: string, value: unknown) => Promise<boolean>;
     };
+    clipboard?: {
+      write: (text: string) => Promise<boolean>;
+    };
   };
 };
 
@@ -25,10 +28,11 @@ export class ClipboardService {
     }
   }
 
-  async copy(text: string, fieldName: string): Promise<void> {
-    await navigator.clipboard.writeText(text);
+  async copy(text: string, fieldName: string): Promise<boolean> {
+    const wrote = await this.write(text);
+    if (!wrote) return false;
     const seconds = this.clearDelay();
-    if (seconds <= 0) return;
+    if (seconds <= 0) return true;
 
     this.cancel();
     this._totalSeconds = seconds;
@@ -38,12 +42,29 @@ export class ClipboardService {
     this._timer = setInterval(() => {
       const next = this.countdown() - 1;
       if (next <= 0) {
-        navigator.clipboard.writeText('').catch(() => {});
+        this.write('').catch(() => {});
         this.cancel();
       } else {
         this.countdown.set(next);
       }
     }, 1000);
+    return true;
+  }
+
+  private async write(text: string): Promise<boolean> {
+    if (window.electronAPI?.clipboard) {
+      try {
+        return await window.electronAPI.clipboard.write(text);
+      } catch {
+        return false;
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   cancel(): void {

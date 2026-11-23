@@ -251,6 +251,9 @@ declare global {
         increment: (itemId: string) => Promise<number>;
         getAll: () => Promise<Record<string, number>>;
       };
+      clipboard: {
+        write: (text: string) => Promise<boolean>;
+      };
       app: {
         getStore: (key: string) => Promise<unknown>;
         setStore: (key: string, value: unknown) => Promise<boolean>;
