@@ -112,4 +112,21 @@ describe('TOTP click to copy', () => {
     expect(written).toEqual([]);
     expect(fixture.componentInstance.copiedField()).toBeNull();
   });
+
+  it('does not copy when reading the code throws', async () => {
+    getTotp = async () => {
+      throw new Error('bw get totp failed');
+    };
+    const fixture = await openLogin();
+    await vi.waitFor(() => expect(fixture.componentInstance.totpError()).toContain('Could not read'));
+    fixture.detectChanges();
+
+    const row = fixture.nativeElement.querySelector('[title="Click to copy the current code"]') as HTMLElement;
+    expect(row.textContent).not.toContain(SECRET);
+    row.click();
+    await Promise.resolve();
+
+    expect(written).toEqual([]);
+    expect(fixture.componentInstance.copiedField()).toBeNull();
+  });
 });

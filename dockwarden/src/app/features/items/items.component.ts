@@ -511,12 +511,18 @@ export class ItemsComponent implements OnInit, OnDestroy {
     if (!itemId || !window.electronAPI) return;
 
     const load = async (): Promise<void> => {
-      const result = await window.electronAPI!.vault.getTotp(itemId);
-      if (this.totpWatchId !== itemId) return;
-      if (result.success && result.code) {
-        this.totpCode.set(result.code.trim());
-        this.totpError.set('');
-      } else {
+      try {
+        const result = await window.electronAPI!.vault.getTotp(itemId);
+        if (this.totpWatchId !== itemId) return;
+        if (result.success && result.code) {
+          this.totpCode.set(result.code.trim());
+          this.totpError.set('');
+        } else {
+          this.totpCode.set('');
+          this.totpError.set('Could not read the current code');
+        }
+      } catch {
+        if (this.totpWatchId !== itemId) return;
         this.totpCode.set('');
         this.totpError.set('Could not read the current code');
       }
