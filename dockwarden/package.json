@@ -17,6 +17,7 @@
     "watch": "ng build --watch --configuration development",
     "test": "node scripts/run-unit-tests.mjs",
     "electron:dev": "concurrently \"npm run watch\" \"wait-on dist/dockwarden/browser/index.html && cross-env ELECTRON_ENV=development electron .\"",
+    "demo": "concurrently -k \"ng serve --host localhost --port 4200\" \"wait-on http://localhost:4200 && cross-env DW_DEMO=1 ELECTRON_ENV=development electron .\"",
     "electron:build": "npm run build:prod && electron-builder",
     "electron": "electron ."
   },

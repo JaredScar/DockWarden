@@ -1,5 +1,9 @@
 @if (showShell()) {
-  <div class="app-shell">
+  <div class="app-frame">
+    @if (demoMode()) {
+      <div class="demo-banner" role="status">Sample vault — dummy logins for local preview. Nothing here is a real account, and nothing is written to Bitwarden.</div>
+    }
+    <div class="app-shell">
     <!-- Sidebar -->
     <aside class="sidebar">
       <!-- Brand / Account Switcher -->
@@ -405,6 +409,7 @@
     <main class="main-content">
       <router-outlet />
     </main>
+    </div>
   </div>
 } @else {
   <router-outlet />

@@ -40,6 +40,10 @@ export class UnlockComponent implements OnInit {
   async ngOnInit(): Promise<void> {
     const status = await this.vaultService.checkAuthStatus();
     if (status === 'unlocked') {
+      await Promise.all([
+        this.vaultService.loadItems(),
+        this.vaultService.loadFolders(),
+      ]);
       this.router.navigate(['/home']);
       return;
     }

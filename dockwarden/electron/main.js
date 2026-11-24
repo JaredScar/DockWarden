@@ -731,6 +731,7 @@ function createMainWindow() {
       nodeIntegration: false,
       sandbox: true,
       webviewTag: false,
+      additionalArguments: process.env.DW_DEMO === '1' ? ['--dw-demo'] : [],
     },
     icon: path.join(__dirname, '../public/favicon.ico'),
     show: false,
@@ -744,9 +745,18 @@ function createMainWindow() {
   console.log('[DockWarden] distExists:', distExists);
   console.log('[DockWarden] isDev:', isDev);
 
+  const demoMode = process.env.DW_DEMO === '1';
+  if (demoMode) mainWindow.setTitle('DockWarden (demo data)');
+
   if (!distExists || isDev) {
-    console.log('[DockWarden] Loading dev server at http://localhost:4200');
-    mainWindow.loadURL('http://localhost:4200');
+    const devUrl = demoMode ? 'http://localhost:4200/?demo=1' : 'http://localhost:4200';
+    console.log('[DockWarden] Loading dev server at', devUrl);
+    mainWindow.loadURL(devUrl);
+  } else if (demoMode) {
+    console.log('[DockWarden] Loading demo build:', distIndex);
+    mainWindow.loadFile(distIndex, { query: { demo: '1' } }).catch(err => {
+      console.error('[DockWarden] loadFile failed:', err);
+    });
   } else {
     console.log('[DockWarden] Loading file:', distIndex);
     mainWindow.loadFile(distIndex).catch(err => {
@@ -764,7 +774,7 @@ function createMainWindow() {
   });
 
   // Only open DevTools during development — never in a packaged build.
-  if (isDev) {
+  if (isDev && !demoMode) {
     mainWindow.webContents.openDevTools();
   }
 
@@ -2907,7 +2917,7 @@ app.whenReady().then(() => {
   // getAccountDataDir performs a one-time migration from the global bw data dir
   // on first call, so existing users keep their login state after this upgrade.
   const activeId = store.get('activeAccountId', null);
-  if (activeId) getAccountDataDir(activeId);
+  if (activeId && process.env.DW_DEMO !== '1') getAccountDataDir(activeId);
 
   // ─── Auto-updater ──────────────────────────────────────────────────────────
   // Skip update checks in dev mode (no published release to compare against)

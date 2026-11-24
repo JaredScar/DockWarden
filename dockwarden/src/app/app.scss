@@ -3,9 +3,27 @@
   height: 100vh;
 }
 
+.app-frame {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: var(--bg-primary);
+}
+
+.demo-banner {
+  flex-shrink: 0;
+  padding: 6px 16px;
+  text-align: center;
+  font-size: 12px;
+  color: #f5d48a;
+  background: #3d2e0a;
+  border-bottom: 1px solid rgba(245, 212, 138, 0.28);
+}
+
 .app-shell {
   display: flex;
-  height: 100vh;
+  flex: 1;
+  min-height: 0;
   overflow: hidden;
   background: var(--bg-primary);
 }

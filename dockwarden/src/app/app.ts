@@ -13,6 +13,7 @@ import { PowerService } from './core/power.service';
 import { VaultTemplate } from './shared/models';
 import { CommonModule } from '@angular/common';
 import { filter } from 'rxjs/operators';
+import { isDemoSession } from './demo/demo-mode';
 
 @Component({
   selector: 'app-root',
@@ -62,6 +63,7 @@ export class App implements OnInit, OnDestroy {
   readonly isUnlocked = this.vaultService.isUnlocked;
   readonly currentUrl = signal('');
   readonly showOfflineQueue = signal(false);
+  readonly demoMode = signal(isDemoSession());
 
   readonly showShell = computed(() => {
     const url = this.currentUrl();

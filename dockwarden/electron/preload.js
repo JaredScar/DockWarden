@@ -1,5 +1,9 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
+// Demo mode leaves electronAPI unset so the page can install an in-memory vault.
+// contextBridge properties are read-only, so the real bridge cannot be replaced.
+const demoMode = process.argv.includes('--dw-demo');
+if (!demoMode) {
 contextBridge.exposeInMainWorld('electronAPI', {
   vault: {
     getItems: () => ipcRenderer.invoke('vault:get-items'),
@@ -176,3 +180,4 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.removeListener(channel, callback);
   },
 });
+}
