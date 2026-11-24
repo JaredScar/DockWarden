@@ -2,13 +2,13 @@
 
 // ─── CSS Custom Properties ───────────────────────────────────────────────────
 :root {
-  --bg-primary: #0f1117;
+  --bg-primary: #0d1117;
   --bg-secondary: #161b22;
   --bg-tertiary: #1c2128;
-  --bg-card: #1c2128;
-  --bg-card-hover: #21262d;
-  --bg-selected: #1f3a5f;
-  --bg-sidebar: #0d1117;
+  --bg-card: #161b22;
+  --bg-card-hover: #1c2128;
+  --bg-selected: #21262d;
+  --bg-sidebar: #010409;
 
   --border: #30363d;
   --border-light: #21262d;
@@ -31,7 +31,7 @@
   --status-warning-bg: rgba(240, 136, 62, 0.15);
   --status-warning-border: rgba(240, 136, 62, 0.4);
 
-  --sidebar-width: 220px;
+  --sidebar-width: 248px;
   --topbar-height: 48px;
 
   --radius-sm: 4px;

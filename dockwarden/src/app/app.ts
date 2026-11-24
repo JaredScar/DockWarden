@@ -64,6 +64,7 @@ export class App implements OnInit, OnDestroy {
   readonly currentUrl = signal('');
   readonly showOfflineQueue = signal(false);
   readonly demoMode = signal(isDemoSession());
+  readonly moreOpen = signal(false);
 
   readonly showShell = computed(() => {
     const url = this.currentUrl();

@@ -10,35 +10,35 @@
   <!-- Stats Cards -->
   <div class="stats-grid">
     <div class="stat-card">
-      <div class="stat-icon" style="background: linear-gradient(135deg, #2f81f7, #a371f7)">
-        <i class="fas fa-key"></i>
+      <div class="stat-top">
+        <div class="stat-label">Total Items</div>
+        <i class="fas fa-key stat-glyph" style="color:#6ea8fe"></i>
       </div>
       <div class="stat-value">{{ stats().totalItems }}</div>
-      <div class="stat-label">Total Items</div>
       <div class="stat-sub">+12 this month</div>
     </div>
     <div class="stat-card" [routerLink]="['/expiry']" style="cursor:pointer">
-      <div class="stat-icon" style="background: linear-gradient(135deg, #f59e0b, #ef4444)">
-        <i class="fas fa-clock"></i>
+      <div class="stat-top">
+        <div class="stat-label">Expiring Soon</div>
+        <i class="fas fa-clock stat-glyph" style="color:#f0883e"></i>
       </div>
       <div class="stat-value">{{ stats().expiringSoon }}</div>
-      <div class="stat-label">Expiring Soon</div>
       <div class="stat-sub">3 need attention</div>
     </div>
     <div class="stat-card" [routerLink]="['/tags']" style="cursor:pointer">
-      <div class="stat-icon" style="background: linear-gradient(135deg, #a855f7, #ec4899)">
-        <i class="fas fa-tags"></i>
+      <div class="stat-top">
+        <div class="stat-label">Tags</div>
+        <i class="fas fa-tags stat-glyph" style="color:#a371f7"></i>
       </div>
       <div class="stat-value">{{ stats().tagCount }}</div>
-      <div class="stat-label">Tags</div>
       <div class="stat-sub">5 folders</div>
     </div>
     <div class="stat-card" [routerLink]="['/backup']" style="cursor:pointer">
-      <div class="stat-icon" style="background: linear-gradient(135deg, #22c55e, #16a34a)">
-        <i class="fas fa-database"></i>
+      <div class="stat-top">
+        <div class="stat-label">Last Backup</div>
+        <i class="fas fa-database stat-glyph" style="color:#3fb950"></i>
       </div>
       <div class="stat-value">{{ formatTimeAgo(backupStatus.lastBackup) }}</div>
-      <div class="stat-label">Last Backup</div>
       <div class="stat-sub">{{ formatNextBackup(backupStatus.nextScheduled) }}</div>
     </div>
   </div>
@@ -95,7 +95,7 @@
           <i class="fas fa-clock card-icon"></i>
           <h3>Expiring Soon</h3>
         </div>
-        <a [routerLink]="['/expiry']" class="view-all-link">View All →</a>
+        <a [routerLink]="['/expiry']" class="view-all-link">View all</a>
       </div>
       <div class="expiry-list">
         @for (entry of expiringItems().slice(0, 5); track entry.item.id) {
@@ -127,7 +127,7 @@
           <i class="fas fa-arrows-rotate card-icon"></i>
           <h3>Recent Activity</h3>
         </div>
-        <a [routerLink]="['/items']" class="view-all-link">View All →</a>
+        <a [routerLink]="['/items']" class="view-all-link">View all</a>
       </div>
       <div class="activity-list">
         @for (activity of recentActivity(); track activity.id) {
